@@ -1,0 +1,41 @@
+# EditorConfig — https://editorconfig.org
+# Applies consistent whitespace across editors and IDEs. Rust uses
+# 4-space indent (matching rustfmt's default); the config-file
+# languages that ship with this repo use 2 to match their ecosystems.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# TOML — Cargo.toml, rust-toolchain.toml, config.toml. 2 is the
+# taplo / rustfmt-toml default.
+[*.toml]
+indent_size = 2
+
+# YAML / JSON / XML / SVG — 2 by ecosystem norm.
+[*.{yml,yaml,json,xml,svg}]
+indent_size = 2
+
+# macOS property lists (deploy/launchd/*.plist) — treat as XML.
+[*.plist]
+indent_size = 4
+
+# Markdown — 2-space indent; do NOT strip trailing whitespace
+# (two-trailing-spaces means "line break" in CommonMark).
+[*.md]
+indent_size = 2
+trim_trailing_whitespace = false
+
+# Shell scripts (deploy templates, hooks, etc.).
+[*.{sh,bash,zsh}]
+indent_size = 2
+
+# Makefiles require literal tabs for recipe indentation.
+[{Makefile,GNUmakefile,*.mk}]
+indent_style = tab

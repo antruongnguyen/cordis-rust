@@ -1,0 +1,6 @@
+{
+  "includeIgnored": [
+    "local/cordis/",
+    "local/cordis-rs/"
+  ]
+}

@@ -4,6 +4,31 @@ A lightweight log of decisions made for this project and the reasoning behind
 them. Newest first. This is intentionally not a heavy ADR process; it records
 *what we chose and why* so the choices aren't re-litigated silently.
 
+## 2026-10-22 — Rust edition 2024 baseline
+
+Use Rust edition **2024** for the initial workspace, inherited by every crate,
+with Cargo resolver **3**. A newer stable edition can be adopted explicitly;
+an older edition does not satisfy the project requirement.
+
+**Why:** This is a new implementation with no legacy-edition compatibility
+obligation. Edition 2024 requires Rust 1.85 or later, but the exact supported
+compiler minimum will be selected and tested when dependencies and language
+features are chosen. The prior port's Rust 1.88 minimum is not ours by default.
+
+## 2026-10-22 — Plan from pinned behavior, not the prior port's architecture
+
+The initial [implementation plan](implementation-plan.md) reviews TypeScript
+Cordis at `35fdc969e4b6c48c48ed44717c7a018324e4dd88` and the independent Rust
+port at `1754062cef67cfc119fc7a2084c0321a231b9092`. Preserve the TS behavior
+of parent-owned children, reusable-root disposal, exact binding retention,
+concurrent top-level cleanup, and the five dispatch modes. Runtime ownership,
+typed tracing, and callback/config API choices require design spikes before
+their public contracts are fixed.
+
+**Why:** The prior port intentionally diverges in these areas and its parity
+ledger uses an older TS revision. Its implementation is useful evidence for
+Rust engineering, not authority to silently narrow this project's semantics.
+
 ## 2026-10-22 — TypeScript `cordis` is the source of truth
 
 The original [cordiverse/cordis](https://github.com/cordiverse/cordis)

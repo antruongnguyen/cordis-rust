@@ -28,12 +28,34 @@ not have. These require real design, not translation:
 
 ## Unresolved design questions
 
-- **Async model.** The TS core is promise-based (`parallel`, `serial`,
-  `waterfall` return promises). Whether/which async runtime the Rust port
-  adopts is undecided. See `docs/todo.md`.
+- **Async model.** `parallel` and `serial` return promises; `emit` and `bail`
+  dispatch synchronously, and continuation-based `waterfall` returns whatever
+  its middleware chain returns (including promises). Rust futures are lazy,
+  so returning or dropping an unpolled future does not reproduce JS start
+  behavior. Executor, Send/Sync guarantees, started-operation cancellation,
+  reentrancy, and panic policy remain open; see design gates A and C in the
+  [implementation plan](implementation-plan.md).
+- **Ownership and teardown.** Rust Drop cannot await cleanup. Parent-owned
+  child Fibers and reusable-root disposal must survive the translation without
+  strong-reference cycles. Exact provider bindings must remain usable through
+  dependent cleanup, even after consumers leave the Registry. Top-level
+  cleanup is concurrent upstream; a universal sequential LIFO drain is not
+  equivalent. These are requirements, not accepted omissions.
+- **Definition site versus use site.** Typed shared service pointers alone
+  cannot retain upstream shadow/caller tracing. Dependency authority,
+  use-site intercept/effect behavior, nested service calls, and explicit
+  accessor/mixin equivalents need a bound-call design. Re-selecting the same
+  isolation label is still an injection-inheritance boundary; retaining only
+  final realm values loses that information.
 - **Config validation.** TS Cordis uses Standard Schema for plugin config
-  validation (`ValidationError`). The Rust equivalent (serde? a schema crate?
-  custom?) is undecided.
+  validation (`ValidationError`) and rejects asynchronous validators. Source
+  and resolved config differ, validation is deferred while Pending, and
+  invalid updates to loaded Fibers preserve the running configuration. The
+  typed validator/schema integration remains undecided; serde is not an
+  automatic core dependency.
+- **Logging representation.** Default buffering, exporter lifetimes, caller
+  naming, and error aggregation are core behavior. JS formatters, callable
+  logger syntax, and weak Fiber metadata still need explicit Rust equivalents.
 - **Error model.** How faithfully to reproduce Cordis's error enhancement and
   stack-trace handling in Rust is open.
 

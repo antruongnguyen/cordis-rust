@@ -41,6 +41,7 @@ are the contract.
 
 - Faithfully mirror the **semantics** of TypeScript Cordis core.
 - Idiomatic, safe Rust — no attempt to transliterate JS-only mechanisms.
+- Rust edition **2024** as the initial baseline; no older edition.
 - Deterministic lifecycle and resource cleanup.
 - A clear mapping, documented, from each TS concept to its Rust expression.
 
@@ -64,10 +65,13 @@ crates/
 ```
 
 Only `cordis-core` is in scope first. The rest are planned, not committed. See
-`docs/todo.md`.
+the [implementation plan](docs/implementation-plan.md) for the source review,
+Rust design gates, milestone dependencies, and acceptance criteria.
 
 ## Documentation
 
+- [`docs/implementation-plan.md`](docs/implementation-plan.md) — source-backed
+  core implementation plan, reference comparison, and validation strategy.
 - [`docs/todo.md`](docs/todo.md) — the porting roadmap.
 - [`docs/decision.md`](docs/decision.md) — decisions and their rationale.
 - [`docs/limitation.md`](docs/limitation.md) — known gaps and open tensions.

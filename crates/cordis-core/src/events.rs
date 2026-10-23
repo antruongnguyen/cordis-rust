@@ -102,12 +102,20 @@ type Snapshot<A, R> = (Rc<State>, Vec<Hook<A, R>>);
 #[derive(Clone, Default)]
 pub struct DispatchOptions {
     filter: Option<Filter>,
+    fiber: Option<crate::FiberId>,
 }
 impl DispatchOptions {
+    pub(crate) fn for_fiber(id: crate::FiberId) -> Self {
+        Self {
+            filter: None,
+            fiber: Some(id),
+        }
+    }
     /// Filter against each listener's registration context; global hooks bypass it.
     pub fn filtered(filter: impl Fn(&Context) -> bool + 'static) -> Self {
         Self {
             filter: Some(Rc::new(filter)),
+            fiber: None,
         }
     }
 }
@@ -127,6 +135,11 @@ enum Kind<A, R> {
 /// Explicit callback shape. Sync and async responders support emit/parallel/
 /// serial; bail requires sync responders; waterfall requires around callbacks.
 pub struct Listener<A, R>(Rc<Kind<A, R>>);
+impl<A, R> Clone for Listener<A, R> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
 impl<A: 'static, R: 'static> Listener<A, R> {
     /// Build a synchronous notification/query callback. Continue means no answer.
     pub fn sync<F, E>(callback: F) -> Self
@@ -315,6 +328,30 @@ fn remove(state: &State, key: &Key, id: u64) -> bool {
     removed
 }
 
+impl crate::hooks::ListenerRequest {
+    /// Substitute a listener of the original event's exact contract. The new
+    /// registration still belongs to the original registering Fiber.
+    pub fn replace<A: 'static, R: 'static>(
+        &self,
+        listener: Listener<A, R>,
+    ) -> Result<ListenerRegistration, EventError> {
+        self.replace_with(listener, self.options)
+    }
+    /// Substitute a listener and its prepend/global options.
+    pub fn replace_with<A: 'static, R: 'static>(
+        &self,
+        listener: Listener<A, R>,
+        options: ListenerOptions,
+    ) -> Result<ListenerRegistration, EventError> {
+        let event = self
+            .event
+            .get::<Event<A, R>>()
+            .map_err(|error| EventError::ContractMismatch(error.to_string()))?;
+        self.context
+            .register_event_raw(&event, listener, options, self.once)
+    }
+}
+
 /// Event admission, type/mode mismatch, callback failure, or interrupted worker.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -475,6 +512,37 @@ impl Context {
             .ok_or(AdmissionError::RuntimeDropped)?;
         state.admit()?;
         self.owner()?.admit()?;
+        if !matches!(&event.key, Key::Named(name) if name == "internal/listener") {
+            let request = crate::hooks::ListenerRequest {
+                context: self.clone(),
+                event: crate::hooks::Value::new(event.clone()),
+                listener: crate::hooks::Value::new(listener.clone()),
+                options,
+                once,
+            };
+            if let ControlFlow::Break(replacement) = self.bail(
+                &crate::hooks::listener(),
+                request,
+                DispatchOptions::default(),
+            )? {
+                return Ok(replacement);
+            }
+        }
+        self.register_event_raw(event, listener, options, once)
+    }
+    fn register_event_raw<A: 'static, R: 'static>(
+        &self,
+        event: &Event<A, R>,
+        listener: Listener<A, R>,
+        options: ListenerOptions,
+        once: bool,
+    ) -> Result<ListenerRegistration, EventError> {
+        let state = self
+            .runtime
+            .upgrade()
+            .ok_or(AdmissionError::RuntimeDropped)?;
+        state.admit()?;
+        self.owner()?.admit()?;
         let existing = state.events.0.borrow().get(&event.key).cloned();
         let bucket: Rc<dyn ErasedBucket> =
             existing.unwrap_or_else(|| Rc::new(Bucket::<A, R>(RefCell::new(Vec::new()))));
@@ -529,11 +597,21 @@ impl Context {
         event: &Event<A, R>,
         options: DispatchOptions,
     ) -> Result<Snapshot<A, R>, EventError> {
+        self.select_hooks(event, options, true)
+    }
+    fn select_hooks<A: 'static, R: 'static>(
+        &self,
+        event: &Event<A, R>,
+        options: DispatchOptions,
+        hosted: bool,
+    ) -> Result<Snapshot<A, R>, EventError> {
         let state = self
             .runtime
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
-        state.admit()?;
+        if hosted {
+            state.admit()?;
+        }
         let bucket = state.events.0.borrow().get(&event.key).cloned();
         let hooks = match bucket {
             None => Vec::new(),
@@ -547,6 +625,13 @@ impl Context {
         };
         let mut selected = Vec::new();
         for hook in hooks {
+            if options
+                .fiber
+                .as_ref()
+                .is_some_and(|fiber| !hook.options.global && hook.context.fiber_id() != fiber)
+            {
+                continue;
+            }
             let admitted = effect::invoke(|| {
                 Ok(hook.options.global
                     || options
@@ -559,7 +644,46 @@ impl Context {
                 selected.push(hook);
             }
         }
+        if options.fiber.is_some() {
+            selected.sort_by_key(|hook| {
+                if hook.options.global && hook.options.prepend {
+                    0
+                } else if !hook.options.global {
+                    1
+                } else {
+                    2
+                }
+            });
+        }
         Ok((state, selected))
+    }
+
+    fn dispatch_hook<A: Clone + 'static, R: 'static>(
+        &self,
+        event: &Event<A, R>,
+        args: &A,
+        mode: &'static str,
+    ) -> Result<(), EventError> {
+        if matches!(&event.key, Key::Named(name) if name.starts_with("internal/")) {
+            return Ok(());
+        }
+        let state = self
+            .runtime
+            .upgrade()
+            .ok_or(AdmissionError::RuntimeDropped)?;
+        state.admit()?;
+        crate::hooks::observe(
+            self,
+            &crate::hooks::dispatch(),
+            crate::hooks::Dispatch {
+                mode,
+                event: crate::hooks::Value::new(event.clone()),
+                arguments: crate::hooks::Value::new(args.clone()),
+                context: self.use_site(),
+            },
+            DispatchOptions::default(),
+        );
+        Ok(())
     }
 
     /// Invoke sync callbacks and async factories immediately. Deferred callbacks
@@ -570,6 +694,7 @@ impl Context {
         args: A,
         options: DispatchOptions,
     ) -> Result<EventTask<()>, EventError> {
+        self.dispatch_hook(event, &args, "emit")?;
         let (state, hooks) = self.event_snapshot(event, options)?;
         validate(&event.key, &hooks, "emit", |kind| {
             matches!(kind, Kind::Sync(_) | Kind::Async(_))
@@ -624,6 +749,7 @@ impl Context {
         args: A,
         options: DispatchOptions,
     ) -> Result<ControlFlow<R>, EventError> {
+        self.dispatch_hook(event, &args, "bail")?;
         let (state, hooks) = self.event_snapshot(event, options)?;
         validate(&event.key, &hooks, "bail", |kind| {
             matches!(kind, Kind::Sync(_))
@@ -649,6 +775,7 @@ impl Context {
         args: A,
         options: DispatchOptions,
     ) -> Result<EventTask<ControlFlow<R>>, EventError> {
+        self.dispatch_hook(event, &args, "serial")?;
         let (state, hooks) = self.event_snapshot(event, options)?;
         validate(&event.key, &hooks, "serial", |kind| {
             matches!(kind, Kind::Sync(_) | Kind::Async(_))
@@ -687,6 +814,7 @@ impl Context {
         args: A,
         options: DispatchOptions,
     ) -> Result<EventTask<()>, EventError> {
+        self.dispatch_hook(event, &args, "parallel")?;
         let (state, hooks) = self.event_snapshot(event, options)?;
         validate(&event.key, &hooks, "parallel", |kind| {
             matches!(kind, Kind::Sync(_) | Kind::Async(_))
@@ -734,7 +862,23 @@ impl Context {
         F: FnOnce() -> Result<R, E> + 'static,
         E: Into<BoxError> + 'static,
     {
-        let (state, hooks) = self.event_snapshot(event, options)?;
+        self.dispatch_hook(event, &args, "waterfall")?;
+        self.waterfall_read(event, args, options, tail, true)
+    }
+
+    pub(crate) fn waterfall_read<A: Clone + 'static, R: 'static, F, E>(
+        &self,
+        event: &Event<A, R>,
+        args: A,
+        options: DispatchOptions,
+        tail: F,
+        hosted: bool,
+    ) -> Result<R, EventError>
+    where
+        F: FnOnce() -> Result<R, E> + 'static,
+        E: Into<BoxError> + 'static,
+    {
+        let (state, hooks) = self.select_hooks(event, options, hosted)?;
         validate(&event.key, &hooks, "waterfall", |kind| {
             matches!(kind, Kind::Around(_))
         })?;
@@ -771,6 +915,7 @@ impl Context {
         Fut: Future<Output = Result<R, E>> + 'static,
         E: Into<BoxError> + 'static,
     {
+        self.dispatch_hook(event, &args, "waterfall")?;
         let (state, hooks) = self.event_snapshot(event, options)?;
         validate(&event.key, &hooks, "waterfall_async", |kind| {
             matches!(kind, Kind::AsyncAround(_))

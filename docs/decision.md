@@ -4,6 +4,51 @@ A lightweight log of decisions made for this project and the reasoning behind
 them. Newest first. This is intentionally not a heavy ADR process; it records
 *what we chose and why* so the choices aren't re-litigated silently.
 
+## 2026-10-23 — M5 uses explicit bound views, not transparent Rust pointers
+
+Keep M4 `Rc<T>` reads unchanged. Add `BoundService<T>` with an explicit method
+adapter receiving the service and traced Context. Checked authority follows
+the publication's definition; realm/intercept/metadata/effect ownership follows
+the use site. Nested calls retain separate caller and definition views, with
+one flattened shadow. Associated access uses the original accessing code's
+authority, not the service's own injections. Callable/holder extensions and
+accessor/mixin receivers have explicit typed adapters.
+
+Isolation slots have opaque allocation identity and retained per-name boundary
+history. Reusing a label still stops inherited inject authority; slots have no
+parent fallback. Publications remember their exact selected slot independently
+of Context derivation. Cross-name shared slots use checked contracts.
+
+**Why:** A transparent `Rc<T>` cannot rebind arbitrary Rust methods. Explicit
+adapters preserve existing callers and avoid Proxy simulation or proc macros.
+Notifications also refresh alias declarations selecting the changed slot:
+this is a deliberate safety strengthening over upstream's name-only notify,
+preventing aliased consumers from trapping a withdrawing publication.
+
+## 2026-10-23 — M5 preserves source validation timing and owns update continuations
+
+Retain source config separately from validated apply input. Loaded updates
+validate before commit/source mutation or middleware; Pending updates defer
+validation. Commit hooks see source; update hooks see resolved input. noSave
+suppresses only commit notification. Local update hooks precede ordinary global
+hooks, while prepended globals precede the local router; all remain scoped
+effects. Calling the owned update continuation starts restart now. Veto retains
+the new source without interrupting in-flight apply. Recovery clears failure
+only through update, and every waiter follows the latest lifecycle pass.
+
+Typed `hooks` values use checked heterogeneous payloads rather than unchecked
+downcasts. Config/get/set and listener replacement preserve their explicit
+contracts. Observer failures are diagnosed without stopping cleanup: unlike
+upstream's throwing observer path, an observer cannot strand retained providers.
+Duplicate propagation of one callback failure shares a diagnostic claim.
+
+Owner-level weak acquisition stop flags prevent advancing an obsolete effect
+stream while still collecting its in-flight final disposer. They do not abort
+native apply futures or retain the host. This closes the update/generator race
+using the existing setup and cleanup implementations.
+
+See [M5 contracts and evidence](m5.md); M6 owns logger/type/example acceptance.
+
 ## 2026-10-23 — M4 separates service slots, publications, and committed loads
 
 Use explicit `ServiceKey<T>` named slots with checked internal type erasure,

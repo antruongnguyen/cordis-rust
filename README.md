@@ -3,11 +3,15 @@
 A Rust reimplementation of [Cordis](https://github.com/cordiverse/cordis) — a
 meta-framework for spatiotemporal composability.
 
-> **Status: M4 global-slot services implemented.** The unpublished `cordis-core` has local
+> **Status: M5 explicit scoped reflection and config updates implemented.**
+> The unpublished `cordis-core` has local
 > hosting, typed plugins/Registry grouping, scoped effects and diagnostics,
 > typed events, validation, restart, parent-owned disposal, typed service
 > publication/lookup, and dependency-driven injection convergence.
-> Isolation/intercepts/tracing, config updates, and full TS parity remain planned.
+> It also has isolation boundaries, explicit bound service calls/intercepts,
+> typed reflection/hooks, config updates/recovery, and latest-target convergence.
+> Complete logging and the final parity/deviation review remain M6;
+> transparent JavaScript Proxy/decorator syntax is not a Rust API promise.
 > The concept map below remains the framework target, not a shipped feature list.
 
 ## Why
@@ -82,7 +86,7 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 ```
 
-See [M4 service APIs](docs/m4.md), [M3 lifecycle APIs](docs/m3.md),
+See [M5 scope/update APIs](docs/m5.md), [M4 service APIs](docs/m4.md), [M3 lifecycle APIs](docs/m3.md),
 [M2 APIs](docs/m2.md), and the examples in the
 [`cordis-core` crate docs](crates/cordis-core/src/lib.rs). The runtime must be
 explicitly driven from Tokio; Context values do not keep their host alive.
@@ -100,6 +104,7 @@ See [M0 results](docs/m0.md) for evidence, selected design directions, and limit
 
 ## Documentation
 
+- [`docs/m5.md`](docs/m5.md) — isolation, bound calls, typed reflection/hooks, and configuration convergence.
 - [`docs/m4.md`](docs/m4.md) — typed services, checked/direct lookup, injection convergence, and exact-provider retention.
 - [`docs/m3.md`](docs/m3.md) — typed plugins, Registry, scoped resources, and base lifecycle.
 - [`docs/m1.md`](docs/m1.md) — supported foundation APIs, ownership, and limits.

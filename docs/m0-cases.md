@@ -8,10 +8,10 @@ must be expanded to every upstream variant when ported; line numbers locate
 the declaration, not an assertion of coverage.
 
 Check an item only when an integrated production Rust test proves its behavior,
-or link an explicit Rust representation restriction instead. M2/M3/M4 mark
+or link an explicit Rust representation restriction instead. M2-M5 mark
 integrated root/lifecycle evidence; the [M2 mapping](m2.md#evidence-and-remaining-case-coverage)
 and [M3 mapping](m3.md#evidence-and-remaining-source-coverage) plus
-[M4 mapping](m4.md#evidence-and-remaining-cases) record API
+[M4 mapping](m4.md#evidence-and-remaining-cases) and [M5 mapping](m5.md#evidence) record API
 restrictions and remaining gaps. A passing disposable M0
 model alone is still not production parity. The [M0 results](m0.md) map its
 selected experiments to source-backed expectations. File-level
@@ -73,9 +73,9 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 - [x] `ctx.waterfall() rejects continuations from outer frames` (line 244)
 - [x] `ctx.waterfall() rejects duplicate next() after awaiting` (line 265)
 - [x] `ctx.waterfall() supports nested async calls` (line 278)
-- [ ] `does not accumulate across reloads` (line 296)
-- [ ] `can be disposed explicitly` (line 313)
-- [ ] `global listeners are not tied to a child fiber reload` (line 330)
+- [x] `does not accumulate across reloads` (line 296)
+- [x] `can be disposed explicitly` (line 313)
+- [x] `global listeners are not tied to a child fiber reload` (line 330)
 
 ## fiber.spec.ts
 
@@ -86,53 +86,53 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 - [ ] `inertia lock 3` (line 49)
 - [x] `plugin error` (line 71)
 - [x] `failed fiber does not re-enter on dependency refresh` (line 93)
-- [ ] `update recovers a failed fiber` (line 108)
-- [ ] `update waits for asynchronous recovery` (line 122)
-- [ ] `update surfaces a failed recovery to its caller` (line 144)
-- [ ] `update surfaces a failed reload to its caller` (line 156)
-- [ ] `update does not leak a dropped failure` (line 171)
+- [x] `update recovers a failed fiber` (line 108)
+- [x] `update waits for asynchronous recovery` (line 122)
+- [x] `update surfaces a failed recovery to its caller` (line 144)
+- [x] `update surfaces a failed reload to its caller` (line 156)
+- [x] `update does not leak a dropped failure` (line 171)
 - [x] `dispose error` (line 185)
-- [ ] `settles a pending fiber to DISPOSED on dispose` (line 204)
-- [ ] `settles a failed fiber to DISPOSED on dispose` (line 231)
-- [ ] `keeps the active dispose sequence stable` (line 264)
+- [x] `settles a pending fiber to DISPOSED on dispose` (line 204)
+- [x] `settles a failed fiber to DISPOSED on dispose` (line 231)
+- [x] `keeps the active dispose sequence stable` (line 264)
 - [ ] `update config on wrapped fiber` (line 292)
 - [x] `restart wrapped fiber` (line 312)
-- [ ] `update config while injected service reloads` (line 326)
+- [x] `update config while injected service reloads` (line 326)
 - [x] `fail on first load` (line 384)
-- [ ] `keep a running plugin on update` (line 396)
-- [ ] `keep the issues and their paths` (line 413)
-- [ ] `pass the resolved config to listeners` (line 426)
-- [ ] `keep the source config when a listener handles the update` (line 448)
+- [x] `keep a running plugin on update` (line 396)
+- [x] `keep the issues and their paths` (line 413)
+- [x] `pass the resolved config to listeners` (line 426)
+- [x] `keep the source config when a listener handles the update` (line 448)
 
 ## intercept.spec.ts
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/intercept.spec.ts); production owner: **M5**.
 
-- [ ] `merge context intercepts from outer to inner` (line 34)
-- [ ] `merge injected config under context intercepts` (line 42)
-- [ ] `take injected config from the declaring fiber` (line 52)
-- [ ] `stop looking for injected config at an isolation boundary` (line 69)
-- [ ] `take no injected config for own provisions` (line 83)
-- [ ] `take injected config from the def site` (line 96)
-- [ ] `custom merge` (line 103)
+- [x] `merge context intercepts from outer to inner` (line 34)
+- [x] `merge injected config under context intercepts` (line 42)
+- [x] `take injected config from the declaring fiber` (line 52)
+- [x] `stop looking for injected config at an isolation boundary` (line 69)
+- [x] `take no injected config for own provisions` (line 83)
+- [x] `take injected config from the def site` (line 96)
+- [x] `custom merge` (line 103)
 
 ## invoke.spec.ts
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/invoke.spec.ts); production owner: **M5**.
 
-- [ ] `functional service` (line 5)
-- [ ] `uses the service shadow for callable extensions` (line 62)
+- [x] `functional service` (line 5; typed ServiceInvoke/map adapters)
+- [x] `uses the service shadow for callable extensions` (line 62)
 
 ## isolate.spec.ts
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/isolate.spec.ts); production owner: **M5**.
 
-- [ ] `does not expose own provisions across isolation boundaries` (line 7)
-- [ ] `does not inherit the injected view across isolation boundaries` (line 24)
-- [ ] `isolated context` (line 55)
-- [ ] `shared label` (line 106)
-- [ ] `isolated event` (line 152)
-- [ ] `keeps own provisions separate from the injected view` (line 172)
+- [x] `does not expose own provisions across isolation boundaries` (line 7)
+- [x] `does not inherit the injected view across isolation boundaries` (line 24)
+- [x] `isolated context` (line 55)
+- [x] `shared label` (line 106)
+- [x] `isolated event` (line 152)
+- [x] `keeps own provisions separate from the injected view` (line 172)
 
 ## logger.spec.ts
 
@@ -178,7 +178,7 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/service-dispose.spec.ts); production owner: **M4**.
 
-- [ ] `releases an injected binding after providing the same name in another realm (%s)` (line 31; all parameter variants)
+- [x] `releases an injected binding after providing the same name in another realm (%s)` (line 31; all parameter variants)
 - [x] `waits for a disposing consumer that has already left the registry` (line 48)
 - [x] `withdraws one binding without waiting for another binding from the same provider` (line 73)
 - [x] `retains resources during consumer cleanup (%s)` (line 95; all parameter variants)
@@ -191,7 +191,7 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 - [x] `keeps an inherited service accessible to a child in a composed effect` (line 271)
 - [x] `retains an ancestor injection until its child finishes cleanup` (line 287)
 - [x] `waits for a child that explicitly injects its parent service` (line 307)
-- [ ] `tracks same-name services in separate isolation realms (root shutdown: %s)` (line 323; all parameter variants)
+- [x] `tracks same-name services in separate isolation realms (root shutdown: %s)` (line 323; all parameter variants)
 - [x] `withdraws only the old binding without waiting for the next load` (line 355)
 - [x] `waits for current and withdrawn bindings during provider disposal (withdrawn first: %s)` (line 386; all parameter variants)
 - [x] `replaces a binding from the same provider during consumer initialization` (line 418; also covers equal/same-Rc values)
@@ -211,36 +211,37 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 
 M4 covers delayed activation through explicit async apply, but `pending inject`
 and the Service.init-dependent snapshot case remain unchecked as complete source
-protocols. The two realm-dependent disposal declarations, isolated-provider
-cleanup, tracing/mixins, and internal/status transition assertions remain M5/M6.
+protocols. M5 now covers both realm-dependent disposal declarations, explicit
+bound tracing/mixins, and typed internal/status sequences. Remaining unchecked
+cases are reviewed individually under M6 rather than inferred from module names.
 
 ## shadow.spec.ts
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/shadow.spec.ts); production owner: **M5**.
 
-- [ ] `keeps caller metadata separate from the service shadow` (line 5)
-- [ ] `applies the service inject when entered from root` (line 60)
-- [ ] `resolves dependencies through a captured shadow` (line 93)
-- [ ] `resolves same-name own provisions at their definition sites` (line 157)
+- [x] `keeps caller metadata separate from the service shadow` (line 5)
+- [x] `applies the service inject when entered from root` (line 60)
+- [x] `resolves dependencies through a captured shadow` (line 93; explicit map/rebind)
+- [x] `resolves same-name own provisions at their definition sites` (line 157)
 - [ ] `keeps unchecked access for services provided on the root ctx` (line 195)
-- [ ] `exposes the caller without preserving shadow for noShadow services` (line 226)
-- [ ] `exposes the caller to callable services` (line 271)
-- [ ] `strips service shadow before creating plugins` (line 313)
+- [x] `exposes the caller without preserving shadow for noShadow services` (line 226; call_unshadowed)
+- [x] `exposes the caller to callable services` (line 271; caller is explicit on BoundService)
+- [x] `strips service shadow before creating plugins` (line 313)
 
 ## update.spec.ts
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/update.spec.ts); production owner: **M5**.
 
-- [ ] `settles concurrent updates on the latest config (inject: %s)` (line 7; all parameter variants)
-- [ ] `skips superseded loads before executing the plugin` (line 54)
-- [ ] `coalesces updates during unloading` (line 69)
-- [ ] `honors %s while loading even when config is unchanged` (line 96; all parameter variants)
-- [ ] `cleans up a superseded failure without failing the latest update` (line 121)
-- [ ] `rejects all waiting updates when the latest load fails` (line 152)
-- [ ] `stops advancing an outdated async generator and collects its final yield` (line 188)
-- [ ] `waits for dependencies and loads only the latest config` (line 212)
-- [ ] `does not restart when a listener accepts an update during loading` (line 234)
-- [ ] `does not load a queued config after disposal` (line 259)
+- [x] `settles concurrent updates on the latest config (inject: %s)` (line 7; all parameter variants)
+- [x] `skips superseded loads before executing the plugin` (line 54)
+- [x] `coalesces updates during unloading` (line 69)
+- [x] `honors %s while loading even when config is unchanged` (line 96; all parameter variants)
+- [x] `cleans up a superseded failure without failing the latest update` (line 121)
+- [x] `rejects all waiting updates when the latest load fails` (line 152)
+- [x] `stops advancing an outdated async generator and collects its final yield` (line 188; explicit owned effect_stream)
+- [x] `waits for dependencies and loads only the latest config` (line 212)
+- [x] `does not restart when a listener accepts an update during loading` (line 234)
+- [x] `does not load a queued config after disposal` (line 259)
 
 ## events.types.ts
 

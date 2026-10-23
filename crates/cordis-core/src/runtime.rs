@@ -27,6 +27,7 @@ pub(crate) struct State {
     pub(crate) logger: crate::logger::LogStore,
     pub(crate) registry: crate::plugin::RegistryStore,
     pub(crate) services: crate::service::ServiceStore,
+    pub(crate) reflect: crate::reflect::ReflectStore,
 }
 
 impl State {
@@ -43,6 +44,9 @@ impl State {
     }
 
     pub(crate) fn report_for(&self, owner: &Owner, failure: CleanupFailure) {
+        if !failure.claim_diagnostic() {
+            return;
+        }
         let diagnostic = std::panic::catch_unwind(AssertUnwindSafe(|| failure.to_string()));
         let text = match diagnostic {
             Ok(text) => text,
@@ -224,6 +228,7 @@ impl Runtime {
             logger: crate::logger::LogStore::default(),
             registry: crate::plugin::RegistryStore::default(),
             services: crate::service::ServiceStore::default(),
+            reflect: crate::reflect::ReflectStore::default(),
         });
         Self {
             state,

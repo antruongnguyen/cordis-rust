@@ -1,5 +1,6 @@
 use crate::{
-    AdmissionError, Completion, Effect, FiberId, RuntimeId, effect::Cleanup, runtime::State,
+    AdmissionError, Completion, Effect, FiberId, IsolationId, RuntimeId, ServiceKey,
+    effect::Cleanup, runtime::State,
 };
 use std::{
     any::{Any, TypeId},
@@ -12,6 +13,18 @@ struct Metadata {
     parent: Option<Rc<Metadata>>,
     contract: TypeId,
     value: Rc<dyn Any>,
+}
+
+pub(crate) struct IsolationLayer {
+    pub(crate) parent: Option<Rc<Self>>,
+    pub(crate) name: String,
+    pub(crate) slot: IsolationId,
+}
+pub(crate) struct InterceptLayer {
+    parent: Option<Rc<Self>>,
+    name: String,
+    value: Rc<dyn Any>,
+    type_name: &'static str,
 }
 
 /// A cheap, immutable view with typed, parent-layered metadata.
@@ -36,6 +49,10 @@ pub struct Context {
     root_id: FiberId,
     name: Rc<str>,
     metadata: Option<Rc<Metadata>>,
+    pub(crate) scope: Option<Rc<IsolationLayer>>,
+    intercepts: Option<Rc<InterceptLayer>>,
+    definition: Option<Rc<Context>>,
+    caller: Option<Rc<Context>>,
 }
 
 impl Context {
@@ -47,6 +64,8 @@ impl Context {
             owner: Rc::downgrade(owner),
             fiber_id: owner.id.clone(),
             name: Rc::from(owner.name.as_str()),
+            definition: None,
+            caller: None,
             ..self.clone()
         }
     }
@@ -59,6 +78,10 @@ impl Context {
             root_id: runtime.root.id.clone(),
             name: Rc::from(runtime.root.name.as_str()),
             metadata: None,
+            scope: None,
+            intercepts: None,
+            definition: None,
+            caller: None,
         }
     }
 
@@ -116,6 +139,10 @@ impl Context {
             metadata: None,
             fiber_id: self.root_id.clone(),
             name: Rc::from("root"),
+            scope: None,
+            intercepts: None,
+            definition: None,
+            caller: None,
             ..self.clone()
         };
         if let Some(state) = self.runtime.upgrade() {
@@ -123,6 +150,109 @@ impl Context {
             root.fiber_id = state.root.id.clone();
         }
         root
+    }
+
+    /// Derive a fresh isolation boundary for a service name.
+    #[must_use]
+    pub fn isolate<T: 'static>(&self, key: &ServiceKey<T>) -> Self {
+        self.isolate_with(key, &IsolationId::new())
+    }
+
+    /// Select a shared slot. Even reselecting the same slot creates a boundary
+    /// that stops inherited injection authority for this name.
+    #[must_use]
+    pub fn isolate_with<T: 'static>(&self, key: &ServiceKey<T>, slot: &IsolationId) -> Self {
+        Self {
+            scope: Some(Rc::new(IsolationLayer {
+                parent: self.scope.clone(),
+                name: key.name().into(),
+                slot: slot.clone(),
+            })),
+            ..self.clone()
+        }
+    }
+
+    /// Read the selected isolation slot, allocating a default root slot if absent.
+    pub fn isolation<T: 'static>(
+        &self,
+        key: &ServiceKey<T>,
+    ) -> Result<IsolationId, AdmissionError> {
+        let state = self
+            .runtime
+            .upgrade()
+            .ok_or(AdmissionError::RuntimeDropped)?;
+        Ok(state.services.slot(self, key.name()))
+    }
+
+    /// Add typed service configuration at this use site. Layers merge explicitly
+    /// through BoundService::intercepts/resolve_intercept.
+    #[must_use]
+    pub fn intercept<T: 'static, C: 'static>(&self, key: &ServiceKey<T>, config: C) -> Self {
+        Self {
+            intercepts: Some(Rc::new(InterceptLayer {
+                parent: self.intercepts.clone(),
+                name: key.name().into(),
+                value: Rc::new(config),
+                type_name: std::any::type_name::<C>(),
+            })),
+            ..self.clone()
+        }
+    }
+
+    pub(crate) fn intercept_values<C: 'static>(
+        &self,
+        name: &str,
+    ) -> Result<Vec<Rc<C>>, crate::ServiceError> {
+        let mut values = Vec::new();
+        let mut layer = self.intercepts.as_ref();
+        while let Some(current) = layer {
+            if current.name == name {
+                values.push(current.value.clone().downcast::<C>().map_err(|_| {
+                    crate::ServiceError::TypeMismatch {
+                        name: format!("{name} intercept"),
+                        expected: std::any::type_name::<C>(),
+                        actual: current.type_name,
+                    }
+                })?);
+            }
+            layer = current.parent.as_ref();
+        }
+        values.reverse();
+        Ok(values)
+    }
+
+    /// The definition view governing checked dependency authority.
+    pub fn definition_site(&self) -> Self {
+        self.definition
+            .as_deref()
+            .cloned()
+            .unwrap_or_else(|| self.clone())
+    }
+
+    /// The use view governing isolation, metadata, and effect ownership.
+    pub fn use_site(&self) -> Self {
+        Self {
+            definition: None,
+            caller: None,
+            ..self.clone()
+        }
+    }
+
+    pub(crate) fn shadow(&self, definition: &Context) -> Self {
+        Self {
+            definition: Some(Rc::new(definition.definition_site())),
+            caller: Some(Rc::new(self.definition_site())),
+            ..self.use_site()
+        }
+    }
+
+    /// Definition Context of the code that accessed the current bound value.
+    /// Unbound views report their own definition Context.
+    pub fn caller_site(&self) -> Self {
+        self.caller
+            .as_deref()
+            .cloned()
+            .unwrap_or_else(|| self.definition_site())
     }
 
     /// Register a one-shot async cleanup on the selected Fiber.

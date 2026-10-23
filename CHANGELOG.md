@@ -8,6 +8,17 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
+- M5 isolation identities and boundary history, scoped typed publications,
+  explicit definition/use-site bound calls, intercept merging, event filtering,
+  typed accessor/mixin/associated/callable equivalents, and captured-holder tracing.
+- Typed internal hook contracts and exact listener replacement, scoped update
+  middleware with local/global ordering, source updates/noSave/recovery,
+  structured validation issues, and latest-config convergence.
+- Obsolete lifecycle targets stop effect-stream advancement while retaining the
+  in-flight final acquisition and its cleanup. Automatic diagnostics correlate
+  propagated lifecycle failures without duplicate reports.
+- M5 contracts and 28 additional integration tests (128 total at this boundary),
+  retaining the ten Rustdoc checks and Rust 1.85 minimum without new dependencies.
 - M4 typed named service publication, owned set/withdrawal, checked/direct lookup,
   explicit duplicate-provider/type/access errors, and synchronous readiness checks.
 - Per-Fiber injection declarations, dependency-driven Pending/Active convergence,

@@ -45,10 +45,12 @@ and behavioral tests, not just public type declarations.
   through consumer cleanup (including consumers removed from the Registry).
   See [m4.md](m4.md). Isolation-dependent service cases and complete reflection/
   internal hook protocols remain assigned to M5/M6, not claimed as suite parity.
-- [ ] M5: Isolation boundaries, intercepts, definition/use-site tracing,
+- [x] M5 (explicit Rust adapters): Isolation boundaries, intercepts, definition/use-site tracing,
   explicit accessor/mixin/associated/callable equivalents, internal hooks,
   update middleware, concurrent latest-config convergence, and the remaining
-  isolation-dependent service-disposal cases.
+  isolation-dependent service-disposal cases. See [m5.md](m5.md) for contracts,
+  safety deviations, and explicit replacements for JavaScript reflection.
+  Remaining case-level evidence is reviewed under M6, not inferred from API names.
 - [ ] M6: Complete core Logger behavior, decorator-injection equivalents,
   compile-time API checks, an end-to-end example, and a parity/deviation review.
 

@@ -1,9 +1,10 @@
-//! Cordis M4: a local plugin runtime with typed services and injection convergence.
+//! Cordis M5: local plugin lifecycle, explicitly scoped services, and config updates.
 //!
 //! Typed plugin grouping, validation, initial load, restart, and parent-owned
 //! disposal, named service publication, checked/direct lookup, and retained
-//! dependency snapshots are implemented. Isolation/intercepts/tracing,
-//! configuration updates, and full logger behavior are later milestones.
+//! dependency snapshots are implemented, including isolated slots, explicit
+//! bound calls/intercepts, typed reflection/hooks and config update/recovery.
+//! Complete logging and final core acceptance belong to M6.
 //!
 //! ```
 //! use cordis_core::Runtime;
@@ -34,17 +35,19 @@
 //!
 //! Contexts, registrations, and completion handles are local, not Send or Sync.
 //! The host must remain alive and driven until cleanup finishes. See
-//! `docs/m1.md`, `docs/m2.md`, `docs/m3.md`, and `docs/m4.md` in the repository
+//! `docs/m1.md` through `docs/m5.md` in the repository
 //! for ownership, dispatch, composition, lifecycle, and cancellation contracts.
 
 mod context;
 mod effect;
 mod error;
 mod events;
+pub mod hooks;
 mod identity;
 mod logger;
 mod owner;
 mod plugin;
+mod reflect;
 mod runtime;
 mod service;
 mod setup;
@@ -53,14 +56,21 @@ pub use context::Context;
 pub use effect::{
     BoxError, CleanupFailure, CleanupReport, Completion, Effect, EffectMeta, LocalFuture,
 };
-pub use error::{AdmissionError, CompletionError, HostError};
+pub use error::{
+    AdmissionError, CompletionError, HostError, PathSegment, ValidationError, ValidationIssue,
+};
 pub use events::{
     AsyncNext, DispatchOptions, Event, EventError, EventTask, Listener, ListenerOptions,
     ListenerRegistration, Next,
 };
-pub use identity::{FiberId, PublicationId, RuntimeId};
+pub use identity::{FiberId, IsolationId, PublicationId, RuntimeId};
 pub use logger::{ExporterOptions, ExporterRegistration, Level, LogError, LogRecord, Logger};
-pub use plugin::{FiberHandle, FiberState, LifecycleError, LifecycleTask, Plugin, Registry};
+pub use plugin::{
+    FiberHandle, FiberState, LifecycleError, LifecycleTask, Plugin, Registry, UpdateOptions,
+};
+pub use reflect::{Accessor, AccessorKey, ReflectError};
 pub use runtime::Runtime;
-pub use service::{Dependency, ServiceError, ServiceKey, ServiceRegistration};
+pub use service::{
+    BoundService, Dependency, ServiceError, ServiceInvoke, ServiceKey, ServiceRegistration,
+};
 pub use setup::{Disposer, SetupError};

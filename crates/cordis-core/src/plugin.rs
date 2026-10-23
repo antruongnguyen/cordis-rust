@@ -1,6 +1,6 @@
 use crate::{
-    AdmissionError, BoxError, CleanupFailure, Context, Dependency, Effect, FiberId, LocalFuture,
-    ServiceError, effect, owner::Owner, runtime::State, service,
+    AdmissionError, BoxError, CleanupFailure, Context, Dependency, Effect, FiberId, IsolationId,
+    LocalFuture, ServiceError, effect, hooks, owner::Owner, runtime::State, service,
 };
 use std::{
     any::Any,
@@ -40,6 +40,8 @@ struct Definition {
     name: String,
     validate: Box<Validate>,
     apply: Box<Apply>,
+    source_type: &'static str,
+    resolved_type: &'static str,
 }
 
 /// A reusable typed plugin declaration. Clones share Registry identity; two new
@@ -126,10 +128,16 @@ impl<C: 'static, R: 'static> Plugin<C, R> {
     {
         let definition = Definition {
             name: name.into(),
+            source_type: std::any::type_name::<C>(),
+            resolved_type: std::any::type_name::<R>(),
             validate: Box::new(move |source| {
-                let config = source
-                    .downcast_ref::<C>()
-                    .expect("source matches plugin contract");
+                let config = source.downcast_ref::<C>().ok_or_else(|| {
+                    CleanupFailure::returned(Box::new(ServiceError::TypeMismatch {
+                        name: "plugin source config".into(),
+                        expected: std::any::type_name::<C>(),
+                        actual: "hook-provided value",
+                    }))
+                })?;
                 effect::invoke(|| {
                     validate(config)
                         .map(|resolved| Box::new(resolved) as Box<dyn Any>)
@@ -162,7 +170,7 @@ impl<C: 'static, R: 'static> Plugin<C, R> {
     }
     /// Declare required services for instances loaded through this declaration
     /// view. Clones keep their grouping identity; each Fiber captures its own list.
-    /// Injection configuration/intercepts are a later milestone.
+    /// Required dependencies may carry typed injection configuration.
     #[must_use]
     pub fn injecting(mut self, dependencies: impl IntoIterator<Item = Dependency>) -> Self {
         self.dependencies = dependencies.into_iter().collect();
@@ -178,6 +186,8 @@ pub enum LifecycleError {
     Admission(AdmissionError),
     /// The latest load failed after partial effect cleanup.
     Callback(CleanupFailure),
+    /// A typed config/update hook failed.
+    Hook(crate::EventError),
     /// The host was destroyed before the requested state settled.
     HostStopped,
     /// A lifecycle driver failed outside user callback containment.
@@ -193,6 +203,7 @@ impl fmt::Display for LifecycleError {
         match self {
             Self::Admission(e) => e.fmt(f),
             Self::Callback(e) => write!(f, "plugin load: {e}"),
+            Self::Hook(e) => e.fmt(f),
             Self::HostStopped => f.write_str("host stopped before Fiber settlement"),
             Self::DriverPanicked => f.write_str("Fiber lifecycle driver panicked"),
         }
@@ -203,6 +214,7 @@ impl Error for LifecycleError {
         match self {
             Self::Admission(e) => Some(e),
             Self::Callback(e) => Some(e),
+            Self::Hook(e) => Some(e),
             _ => None,
         }
     }
@@ -248,22 +260,35 @@ struct Group {
 pub(crate) struct RegistryStore(RefCell<HashMap<usize, Rc<Group>>>);
 
 impl RegistryStore {
-    pub(crate) fn notify(&self, state: &Rc<State>, host: &LocalSet, names: &[String]) {
+    pub(crate) fn notify(
+        &self,
+        state: &Rc<State>,
+        host: &LocalSet,
+        changes: &[(String, IsolationId)],
+    ) {
         let fibers: Vec<_> = self
             .0
             .borrow()
             .values()
             .flat_map(|group| group.fibers.borrow().values().cloned().collect::<Vec<_>>())
-            .filter(|fiber| {
-                fiber
-                    .owner
-                    .dependencies
-                    .iter()
-                    .any(|dependency| names.contains(&dependency.name))
-            })
             .collect();
         for fiber in fibers {
-            fiber.check_services(state, host, names);
+            let names: Vec<_> = changes
+                .iter()
+                .flat_map(|(_, slot)| {
+                    fiber
+                        .owner
+                        .dependencies
+                        .iter()
+                        .filter(|dependency| {
+                            state.services.slot(&fiber.context, &dependency.name) == *slot
+                        })
+                        .map(|dependency| dependency.name.clone())
+                })
+                .collect();
+            if !names.is_empty() {
+                fiber.check_services(state, host, &names);
+            }
         }
     }
 }
@@ -282,7 +307,7 @@ impl Target {
                     && left
                         .iter()
                         .zip(right)
-                        .all(|(left, right)| left.id == right.id)
+                        .all(|(left, right)| left.publication.id == right.publication.id)
             }
             _ => false,
         }
@@ -295,7 +320,7 @@ pub(crate) struct Fiber {
     context: Context,
     group: Weak<Group>,
     definition: Rc<Definition>,
-    source: Rc<dyn Any>,
+    source: RefCell<Rc<dyn Any>>,
     parent_effect: RefCell<Option<Effect>>,
     state: Cell<FiberState>,
     revision: Cell<u64>,
@@ -308,11 +333,68 @@ pub(crate) struct Fiber {
     completion: RefCell<Option<Receiver>>,
 }
 impl Fiber {
+    fn info(&self) -> hooks::FiberInfo {
+        hooks::FiberInfo {
+            id: self.owner.id.clone(),
+            name: self.owner.name.clone(),
+            state: self.state.get(),
+            live: self.owner.live.get(),
+        }
+    }
+    fn resolve_config(&self, source: Rc<dyn Any>) -> Result<Box<dyn Any>, CleanupFailure> {
+        let source = hooks::Value {
+            inner: source,
+            actual: self.definition.source_type,
+        };
+        let tail = source.clone();
+        let request = hooks::Config {
+            fiber: self.info(),
+            source,
+        };
+        let transformed = self
+            .context
+            .waterfall(
+                &hooks::config(),
+                request,
+                crate::DispatchOptions::default(),
+                move || Ok::<_, BoxError>(tail),
+            )
+            .map_err(|error| CleanupFailure::returned(Box::new(error)))?;
+        (self.definition.validate)(&*transformed.inner)
+    }
+    fn request_restart(
+        self: &Rc<Self>,
+        state: &Rc<State>,
+    ) -> Result<LifecycleTask, LifecycleError> {
+        if !self.owner.live.get() {
+            return Ok(self.ready());
+        }
+        let host = state.admit()?;
+        self.revision.set(
+            self.revision
+                .get()
+                .checked_add(1)
+                .ok_or(AdmissionError::IdentityExhausted)?,
+        );
+        self.refresh(state, &host);
+        Ok(self.ready())
+    }
     pub(crate) fn state(&self) -> FiberState {
         self.state.get()
     }
     fn set_state(&self, state: &Rc<State>, host: &LocalSet, next: FiberState) {
         let previous = self.state.replace(next);
+        if previous != next {
+            hooks::observe(
+                &self.context,
+                &hooks::status(),
+                hooks::Status {
+                    fiber: self.info(),
+                    previous,
+                },
+                crate::DispatchOptions::default(),
+            );
+        }
         if previous != next && (previous == FiberState::Active || next == FiberState::Active) {
             service::notify(state, host, &self.owner);
         }
@@ -330,17 +412,28 @@ impl Fiber {
             revision: self.revision.get(),
             bindings: (|| {
                 let mut bindings = Vec::new();
-                for candidate in self.candidates.borrow().iter() {
+                for (candidate, dependency) in self
+                    .candidates
+                    .borrow()
+                    .iter()
+                    .zip(&self.owner.dependencies)
+                {
                     let Some(publication) = candidate.clone()? else {
                         return Ok(None);
                     };
-                    bindings.push(publication);
+                    bindings.push(service::Binding {
+                        name: dependency.name.clone(),
+                        publication,
+                    });
                 }
                 Ok(Some(bindings))
             })(),
         });
         if self.target.borrow().same(&target) {
             return;
+        }
+        if self.loaded.get() {
+            self.owner.stop_acquisitions();
         }
         let old = self.target.replace(target);
         drop(old);
@@ -352,7 +445,7 @@ impl Fiber {
         }
         for (index, dependency) in self.owner.dependencies.iter().enumerate() {
             if names.contains(&dependency.name) {
-                let candidate = service::resolve(state, dependency);
+                let candidate = service::resolve(state, &self.context, dependency);
                 if !self.owner.live.get() {
                     return;
                 }
@@ -405,9 +498,9 @@ impl Fiber {
         }
         let (sender, receiver) = watch::channel(None);
         *self.completion.borrow_mut() = Some(receiver.clone());
-        if self.loaded.get() || !self.owner.live.get() {
+        if self.loaded.get() {
             self.set_state(state, host, FiberState::Unloading);
-        } else {
+        } else if self.owner.live.get() {
             self.set_state(state, host, FiberState::Loading);
         }
         let fiber = self.clone();
@@ -461,6 +554,13 @@ impl Fiber {
             return Ok(LifecycleTask::resolved(Ok(FiberState::Disposed)));
         }
         self.owner.live.set(false);
+        self.owner.stop_acquisitions();
+        hooks::observe(
+            &self.context,
+            &hooks::plugin(),
+            self.info(),
+            crate::DispatchOptions::default(),
+        );
         self.forget_targets();
         let parent = self.parent_effect.borrow_mut().take();
         if let Some(parent) = parent {
@@ -516,7 +616,9 @@ impl Fiber {
     async fn drive(self: Rc<Self>, state: Rc<State>) -> Outcome {
         loop {
             if self.loaded.get() || !self.owner.live.get() {
-                self.transition(&state, FiberState::Unloading)?;
+                if self.loaded.get() {
+                    self.transition(&state, FiberState::Unloading)?;
+                }
                 self.drain(&state).await?;
                 self.loaded.set(false);
             }
@@ -550,9 +652,8 @@ impl Fiber {
             if !self.owner.live.get() || !Rc::ptr_eq(&target, &self.target.borrow()) {
                 continue;
             }
-            let resolved = self
-                .owner
-                .setup_scope(|| (self.definition.validate)(&*self.source));
+            let source = self.source.borrow().clone();
+            let resolved = self.owner.setup_scope(|| self.resolve_config(source));
             let outcome = match resolved {
                 Ok(resolved) => {
                     self.owner
@@ -588,6 +689,13 @@ impl Fiber {
     }
 }
 
+/// Configuration update behavior.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct UpdateOptions {
+    /// Suppress source commit notification only, not source replacement or update.
+    pub no_save: bool,
+}
+
 /// Cloneable control of one non-root Fiber. Dropping all handles is inert;
 /// residency and parent ownership keep the Fiber alive until explicit disposal.
 pub struct FiberHandle<C: 'static> {
@@ -621,6 +729,7 @@ impl<C: 'static> FiberHandle<C> {
     pub fn config(&self) -> Rc<C> {
         self.fiber
             .source
+            .borrow()
             .clone()
             .downcast::<C>()
             .expect("typed Fiber source matches its plugin")
@@ -636,8 +745,145 @@ impl<C: 'static> FiberHandle<C> {
         self.fiber.owner.assert_not_cleaning()?;
         Ok(self.fiber.ready())
     }
+    /// Commit a typed source config and converge toward its latest load.
+    /// Invalid loaded candidates fail synchronously without changing source or
+    /// invoking update middleware. Pending instances defer validation.
+    pub fn update(&self, config: C) -> Result<LifecycleTask, LifecycleError> {
+        self.update_with(config, UpdateOptions::default())
+    }
+
+    /// Update with explicit commit-notification behavior. Started updates survive
+    /// dropped waiters; update middleware may accept the source without restarting.
+    pub fn update_with(
+        &self,
+        config: C,
+        options: UpdateOptions,
+    ) -> Result<LifecycleTask, LifecycleError> {
+        let state = self
+            .runtime
+            .upgrade()
+            .ok_or(AdmissionError::RuntimeDropped)?;
+        let host = state.admit()?;
+        self.fiber.owner.admit()?;
+        self.fiber.owner.assert_not_cleaning()?;
+        let source: Rc<dyn Any> = Rc::new(config);
+        let loaded = matches!(&self.fiber.target.borrow().bindings, Ok(Some(_)));
+        let resolved = if loaded {
+            Some(
+                self.fiber
+                    .owner
+                    .setup_scope(|| self.fiber.resolve_config(source.clone()))
+                    .map_err(LifecycleError::Callback)?,
+            )
+        } else {
+            None
+        };
+        if !options.no_save {
+            let task = self
+                .fiber
+                .context
+                .emit(
+                    &hooks::commit(),
+                    hooks::Commit {
+                        fiber: self.fiber.info(),
+                        source: hooks::Value {
+                            inner: source.clone(),
+                            actual: self.fiber.definition.source_type,
+                        },
+                    },
+                    crate::DispatchOptions::default(),
+                )
+                .map_err(LifecycleError::Hook)?;
+            drop(task);
+        }
+        let previous = self.fiber.source.replace(source);
+        let failure = self.fiber.failure.borrow_mut().take();
+        let recovering = failure.is_some();
+        drop((previous, failure));
+        if recovering {
+            self.fiber.completion.borrow_mut().take();
+            self.fiber.transition(&state, FiberState::Pending)?;
+            let names: Vec<_> = self
+                .fiber
+                .owner
+                .dependencies
+                .iter()
+                .map(|dependency| dependency.name.clone())
+                .collect();
+            self.fiber.check_services(&state, &host, &names);
+        }
+        let Some(resolved) = resolved else {
+            return self.fiber.request_restart(&state);
+        };
+        let request = hooks::Update {
+            fiber: self.fiber.info(),
+            resolved: hooks::Value {
+                inner: Rc::from(resolved),
+                actual: self.fiber.definition.resolved_type,
+            },
+        };
+        let middleware = self
+            .fiber
+            .context
+            .waterfall_async(
+                &hooks::update(),
+                request,
+                crate::DispatchOptions::for_fiber(self.fiber.owner.id.clone()),
+                {
+                    let fiber = self.fiber.clone();
+                    let state = state.clone();
+                    move || {
+                        let task = fiber.request_restart(&state);
+                        async move {
+                            task?.await?;
+                            Ok::<_, BoxError>(true)
+                        }
+                    }
+                },
+            )
+            .map_err(LifecycleError::Hook)?;
+        let (sender, receiver) = watch::channel(None);
+        let fiber = self.fiber.clone();
+        let runtime = state.clone();
+        let worker = state.spawn(&host, async move {
+            match middleware.await {
+                Ok(true) => fiber.ready().await,
+                Ok(false) => fiber.outcome(),
+                Err(error) => {
+                    if let Some(failure) = restart_failure(&error) {
+                        let diagnostic = match &failure {
+                            LifecycleError::Callback(callback) => callback.clone(),
+                            _ => CleanupFailure::returned(Box::new(failure.clone())),
+                        };
+                        runtime.report_for(&fiber.owner, diagnostic);
+                        return Err(failure);
+                    }
+                    runtime.report_for(
+                        &fiber.owner,
+                        CleanupFailure::returned(Box::new(error.clone())),
+                    );
+                    Err(LifecycleError::Hook(error))
+                }
+            }
+        });
+        state.spawn(&host, async move {
+            let result = match worker.await {
+                Ok(result) => result,
+                Err(error) => {
+                    eprintln!("cordis: update driver did not complete: {error}");
+                    Err(if error.is_panic() {
+                        LifecycleError::DriverPanicked
+                    } else {
+                        LifecycleError::HostStopped
+                    })
+                }
+            };
+            sender.send_replace(Some(result));
+        });
+        Ok(LifecycleTask::waiting(receiver))
+    }
     /// Force unload/reapply of the same source and identity. Failed Fibers retain
-    /// their failure; configuration update/recovery is a later milestone.
+    /// their failure; use update for explicit recovery.
     pub fn restart(&self) -> Result<LifecycleTask, LifecycleError> {
         let state = self
             .runtime
@@ -649,15 +895,8 @@ impl<C: 'static> FiberHandle<C> {
         if let Some(error) = self.fiber.failure.borrow().clone() {
             return Ok(LifecycleTask::resolved(Err(error)));
         }
-        self.fiber.revision.set(
-            self.fiber
-                .revision
-                .get()
-                .checked_add(1)
-                .ok_or(AdmissionError::IdentityExhausted)?,
-        );
-        self.fiber.refresh(&state, &host);
-        Ok(self.fiber.ready())
+        drop(host);
+        self.fiber.request_restart(&state)
     }
     /// Mark terminal and unlink residency/parent registration now, then wait for
     /// in-flight apply, owned children, and resources to finish teardown.
@@ -668,6 +907,22 @@ impl<C: 'static> FiberHandle<C> {
             .ok_or(AdmissionError::RuntimeDropped)?;
         self.fiber.dispose(&state)
     }
+}
+
+fn restart_failure(error: &crate::EventError) -> Option<LifecycleError> {
+    let crate::EventError::Callbacks { failures, .. } = error else {
+        return None;
+    };
+    if failures.len() != 1 {
+        return None;
+    }
+    let source = &failures[0].source;
+    if let Some(error) = source.downcast_ref::<LifecycleError>() {
+        return Some(error.clone());
+    }
+    source
+        .downcast_ref::<crate::EventError>()
+        .and_then(restart_failure)
 }
 
 /// A non-owning Registry view. Grouping follows reusable Plugin allocation, not
@@ -757,6 +1012,59 @@ impl Registry {
 }
 
 impl Context {
+    /// Register resolved-config update middleware on this Fiber. Omitting next
+    /// accepts the new source without restarting. Global middleware can use
+    /// hooks::update with ordinary global listener options.
+    pub fn on_update<R: 'static, F, Fut, E>(
+        &self,
+        callback: F,
+    ) -> Result<crate::ListenerRegistration, crate::EventError>
+    where
+        F: Fn(Context, Rc<R>, crate::AsyncNext<bool>) -> Fut + 'static,
+        Fut: Future<Output = Result<bool, E>> + 'static,
+        E: Into<BoxError> + 'static,
+    {
+        self.on(
+            &hooks::update(),
+            crate::Listener::around_async(move |ctx, request: hooks::Update, next| {
+                let future = request
+                    .resolved
+                    .get::<R>()
+                    .map(|resolved| callback(ctx, resolved, next));
+                async move {
+                    match future {
+                        Ok(future) => future.await.map_err(Into::into),
+                        Err(error) => Err(Box::new(error) as BoxError),
+                    }
+                }
+            }),
+        )
+    }
+    /// Synchronous-prefix update adapter. True continues the middleware chain;
+    /// false accepts the config without invoking the restart continuation.
+    pub fn on_update_sync<R: 'static, F, E>(
+        &self,
+        callback: F,
+    ) -> Result<crate::ListenerRegistration, crate::EventError>
+    where
+        F: Fn(Rc<R>) -> Result<bool, E> + 'static,
+        E: Into<BoxError> + 'static,
+    {
+        self.on_update(move |_, resolved, next| {
+            let decision = callback(resolved).map_err(Into::into);
+            let continuation = match decision {
+                Ok(true) => Some(next.call()),
+                _ => None,
+            };
+            async move {
+                decision?;
+                match continuation {
+                    Some(future) => future.await.map_err(|error| Box::new(error) as BoxError),
+                    None => Ok(false),
+                }
+            }
+        })
+    }
     /// Obtain a read/control view of the runtime's plugin Registry.
     pub fn registry(&self) -> Registry {
         Registry {
@@ -795,7 +1103,12 @@ impl Context {
         } else {
             group.definition.name.clone()
         };
-        let owner = Owner::child(name, &parent, plugin.dependencies.clone());
+        let owner = Owner::child(
+            name,
+            &parent,
+            plugin.dependencies.clone(),
+            self.scope.clone(),
+        );
         let context = self.with_owner(&owner);
         let fiber = Rc::new(Fiber {
             serial,
@@ -803,7 +1116,7 @@ impl Context {
             context,
             group: Rc::downgrade(&group),
             definition: group.definition.clone(),
-            source: Rc::new(config),
+            source: RefCell::new(Rc::new(config)),
             parent_effect: RefCell::new(None),
             state: Cell::new(FiberState::Pending),
             revision: Cell::new(0),
@@ -839,6 +1152,12 @@ impl Context {
         *fiber.parent_effect.borrow_mut() = Some(parent_effect);
         group.fibers.borrow_mut().insert(serial, fiber.clone());
         state.registry.0.borrow_mut().insert(plugin.key(), group);
+        hooks::observe(
+            &fiber.context,
+            &hooks::plugin(),
+            fiber.info(),
+            crate::DispatchOptions::default(),
+        );
         let names: Vec<_> = plugin
             .dependencies
             .iter()

@@ -26,27 +26,28 @@ not have. These require real design, not translation:
   Rust needs a typed strategy (type-erased storage, downcasting, or a
   trait-object registry) to recover both dynamism and type safety.
 
-## M4 current boundary
+## M5 current boundary
 
-The unpublished core includes [M4 typed global-slot services/injection](m4.md),
+The unpublished core includes [M5 scoped reflection/config updates](m5.md),
+[M4 typed services/injection](m4.md),
 [M3 base plugin lifecycle/Registry](m3.md), and Fiber-scoped
 [effects, typed events, and diagnostics](m2.md) on the [M1 host](m1.md).
-There is no isolation/intercept/use-site tracing API, configuration update/recovery,
-or complete internal lifecycle/service/update hook protocol.
+Logging completion, injection/decorator adapters, compile-time API acceptance,
+the end-to-end example and the final parity/deviation review remain M6.
 
-- Services use global string slots and explicit `ServiceKey<T>` access, not
-  JS properties or transparent bound objects. Checked access respects captured
-  definition Contexts and Fiber ancestry; full bound definition/use-site calls
-  and isolation-boundary history remain M5. The two realm-dependent declarations
-  in `service-dispose.spec.ts` remain unchecked.
+- Services use explicit `ServiceKey<T>` access, not JS properties. M5 supports
+  isolated slots with retained boundary history and explicit `BoundService`
+  adapters carrying separate definition/use Contexts. An ordinary `Rc<T>`
+  cannot transparently rebind arbitrary Rust methods. The two realm-dependent
+  service-disposal declarations now have integrated evidence.
 - Reads return `Rc<T>` snapshots of a publication's current value. Holding a
   returned value is not a lease on the provider's effects/resources; only
   committed injection retains those through cleanup. Existing `Rc<T>` reads
   do not change when set replaces the stored value.
-- Injection currently declares required names/types, with synchronous provider
-  readiness checks. Injected intercept/config metadata and automatic
-  Service.init/constructor discovery are not implemented. Explicit plugin apply
-  futures provide the initialization barrier. `set` preserves publication
+- Injection declares required names/types, typed config metadata and synchronous
+  provider checks. Intercepts merge through an explicit service-specific callback.
+  Automatic Service.init/constructor discovery is not implemented; explicit
+  plugin apply futures provide the initialization barrier. `set` preserves publication
   identity and does not notify dependencies or recheck readiness.
 
 - Plugin declarations are immutable and reusable with explicit allocation
@@ -54,8 +55,8 @@ or complete internal lifecycle/service/update hook protocol.
   Apply registers effects rather than implicitly interpreting arbitrary return
   shapes. Dynamic callback metadata mutation is not implemented.
 - Missing dependencies now produce Pending without validation; exact publication
-  replacements drive unload/reload. State snapshots are not internal/status event evidence.
-  Failed Fibers stay resident until disposal; config-update recovery needs M5.
+  replacements drive unload/reload. Typed status-event sequences are now tested.
+  Failed Fibers stay resident and recover only through config update.
 - Restart/dispose self-waits and owning-ancestor waits are refused from directly
   attributed callbacks. User-spawned task graphs do not gain that attribution
   or general deadlock detection automatically.
@@ -77,7 +78,8 @@ or complete internal lifecycle/service/update hook protocol.
   operations return `RuntimeDropped`. Arbitrary user-created Rc cycles are
   not collected. Retained Fiber handles can retain source/metadata and pending
   cleanup captures until dropped; host destruction does not run async cleanup.
-  Full bound definition/use-site tracing is still M5 work.
+  Tracing requires explicit bound adapters; native property/method interception
+  and automatic tracing of arbitrary returned objects are not provided.
 - Only its explicit run scope admits work. Missing/wrong hosts, nested or
   concurrent driving, and hosting inside spawned tasks are refused. Pausing
   a run pauses local tasks; host destruction is cancellation, not cleanup.
@@ -115,19 +117,20 @@ integrated framework or resolve every behavioral gap.
   its middleware chain returns (including promises). Rust futures are lazy,
   so returning or dropping an unpolled future does not reproduce JS start
   behavior. M3 integrates base non-root lifecycle and per-Fiber ownership;
-  complete internal event/config behavior and isolated/traced service views
-  remain future work. See design gates A and C in the
+  M5 adds typed internal protocols and explicit bound service views, while native
+  lazy futures still require eager-prefix adapters where immediate execution
+  matters. See design gates A and C in the
   [implementation plan](implementation-plan.md).
 - **Ownership and teardown.** Rust Drop cannot await cleanup. M3 implements
   parent-owned children and reusable-root disposal with weak backreferences.
   M4 keeps exact provider bindings usable through dependent cleanup, even
   after consumers leave the Registry, and preserves unrelated concurrent
-  cleanup. Remaining isolation-dependent retention cases need M5; passing the
-  global-slot slice does not establish full service-disposal suite parity.
+  cleanup. M5 covers the isolation-dependent retention cases too; remaining
+  syntax/tracing representation differences are explicit in its contract.
 - **Definition site versus use site.** Typed shared service pointers alone
   cannot retain upstream shadow/caller tracing. Dependency authority,
-  use-site intercept/effect behavior, nested service calls, and explicit
-  accessor/mixin equivalents need a bound-call design. Re-selecting the same
+  use-site intercept/effect behavior and nested service calls use M5's bound
+  adapters, not transparent pointer reads. Re-selecting the same
   isolation label is still an injection-inheritance boundary; retaining only
   final realm values loses that information.
 - **Config validation.** TS Cordis uses Standard Schema for plugin config
@@ -135,8 +138,8 @@ integrated framework or resolve every behavioral gap.
   and resolved config differ, validation is deferred while Pending, and
   invalid updates to loaded Fibers preserve the running configuration. M3 has
   synchronous typed validation/source separation, and M4 defers it until
-  dependencies resolve. There is no update API yet.
-  Schema integration remains undecided; serde is not an
+  dependencies resolve. M5 adds typed updates/recovery and structured issue paths.
+  Automatic schema discovery remains unsupported; serde is not an
   automatic core dependency.
 - **Logging representation.** Default buffering, exporter lifetimes, caller
   naming, and error aggregation are core behavior. JS formatters, callable
@@ -154,3 +157,8 @@ integrated framework or resolve every behavioral gap.
 
 This document should shrink as tensions are resolved (move resolved items into
 `docs/decision.md`) and grow as new ones surface.
+
+M5 safety deviations: observer hook failures are diagnosed without interrupting
+retained-provider cleanup; shared-slot aliases also receive dependency refresh.
+These strengthen error/teardown safety rather than claiming identical upstream
+observer-failure or name-only alias notification behavior.

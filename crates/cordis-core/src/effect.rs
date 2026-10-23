@@ -1,7 +1,7 @@
 use crate::{AdmissionError, CompletionError, runtime::State};
 use futures_util::future::LocalBoxFuture;
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     error::Error,
     fmt,
     future::Future,
@@ -160,10 +160,14 @@ pub type LocalFuture<T> = LocalBoxFuture<'static, T>;
 pub type BoxError = Box<dyn Error>;
 
 impl CleanupFailure {
+    pub(crate) fn claim_diagnostic(&self) -> bool {
+        !self.reported.replace(true)
+    }
     pub(crate) fn returned(error: BoxError) -> Self {
         Self {
             source: Rc::from(error),
             panicked: false,
+            reported: Rc::new(Cell::new(false)),
         }
     }
     pub(crate) fn panic(payload: Box<dyn std::any::Any + Send>) -> Self {
@@ -177,6 +181,7 @@ impl CleanupFailure {
         Self {
             source: Rc::new(PanicMessage(message)),
             panicked: true,
+            reported: Rc::new(Cell::new(false)),
         }
     }
 }
@@ -215,6 +220,7 @@ pub(crate) type Receiver = watch::Receiver<Option<Outcome>>;
 pub struct CleanupFailure {
     pub(crate) source: Rc<dyn Error>,
     pub(crate) panicked: bool,
+    reported: Rc<Cell<bool>>,
 }
 
 impl CleanupFailure {

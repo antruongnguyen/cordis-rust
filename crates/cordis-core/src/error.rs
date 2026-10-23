@@ -83,3 +83,58 @@ impl fmt::Display for CompletionError {
     }
 }
 impl Error for CompletionError {}
+
+/// A typed validation issue, retained without flattening structured paths.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValidationIssue {
+    /// Human-readable issue.
+    pub message: String,
+    /// Field/array path; an empty path refers to the config itself.
+    pub path: Vec<PathSegment>,
+}
+/// One validation path segment.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PathSegment {
+    /// Named field.
+    Key(String),
+    /// Array position.
+    Index(usize),
+}
+/// Synchronous validator failure with inspectable original issues.
+#[derive(Clone, Debug)]
+pub struct ValidationError {
+    /// Structured issues, in validator order.
+    pub issues: Vec<ValidationIssue>,
+}
+impl ValidationError {
+    /// Retain issues without converting paths to diagnostic-only strings.
+    pub fn new(issues: Vec<ValidationIssue>) -> Self {
+        Self { issues }
+    }
+}
+impl fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("invalid config:\n")?;
+        for (index, issue) in self.issues.iter().enumerate() {
+            if index > 0 {
+                f.write_str("\n")?;
+            }
+            write!(f, "  - {}", issue.message)?;
+            if !issue.path.is_empty() {
+                f.write_str(" (at ")?;
+                for (index, segment) in issue.path.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(".")?;
+                    }
+                    match segment {
+                        PathSegment::Key(key) => f.write_str(key)?,
+                        PathSegment::Index(index) => write!(f, "{index}")?,
+                    }
+                }
+                f.write_str(")")?;
+            }
+        }
+        Ok(())
+    }
+}
+impl Error for ValidationError {}

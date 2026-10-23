@@ -21,8 +21,10 @@ pub(crate) struct Owner {
     pub(crate) fiber: RefCell<Weak<crate::plugin::Fiber>>,
     pub(crate) dependencies: Vec<crate::Dependency>,
     pub(crate) committed: RefCell<Option<crate::service::Bindings>>,
-    pub(crate) provisions: RefCell<crate::service::Bindings>,
+    pub(crate) provisions: RefCell<Vec<Rc<crate::service::Publication>>>,
+    pub(crate) scope: Option<Rc<crate::context::IsolationLayer>>,
     pub(crate) services_paused: Cell<bool>,
+    pub(crate) acquisitions: RefCell<Vec<Weak<Cell<bool>>>>,
     root: bool,
 }
 impl Owner {
@@ -38,7 +40,9 @@ impl Owner {
             dependencies: Vec::new(),
             committed: RefCell::new(None),
             provisions: RefCell::new(Vec::new()),
+            scope: None,
             services_paused: Cell::new(false),
+            acquisitions: RefCell::new(Vec::new()),
             root: true,
         })
     }
@@ -46,6 +50,7 @@ impl Owner {
         name: String,
         parent: &Rc<Self>,
         dependencies: Vec<crate::Dependency>,
+        scope: Option<Rc<crate::context::IsolationLayer>>,
     ) -> Rc<Self> {
         Rc::new(Self {
             id: FiberId::new(),
@@ -58,23 +63,36 @@ impl Owner {
             dependencies,
             committed: RefCell::new(None),
             provisions: RefCell::new(Vec::new()),
+            scope,
             services_paused: Cell::new(false),
+            acquisitions: RefCell::new(Vec::new()),
             root: false,
         })
     }
     pub(crate) fn is_root(&self) -> bool {
         self.root
     }
+    pub(crate) fn stop_acquisitions(&self) {
+        let flags: Vec<_> = self
+            .acquisitions
+            .borrow()
+            .iter()
+            .filter_map(Weak::upgrade)
+            .collect();
+        for flag in flags {
+            flag.set(true);
+        }
+    }
     pub(crate) fn commit(&self, bindings: crate::service::Bindings) {
         for publication in &bindings {
-            publication.retain(self);
+            publication.publication.retain(self);
         }
         *self.committed.borrow_mut() = Some(bindings);
     }
     pub(crate) fn release_dependencies(&self) {
         let bindings = self.committed.borrow_mut().take();
         for publication in bindings.into_iter().flatten() {
-            publication.release(self);
+            publication.publication.release(self);
         }
     }
     pub(crate) fn admit(&self) -> Result<(), AdmissionError> {

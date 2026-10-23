@@ -69,3 +69,23 @@ impl fmt::Debug for PublicationId {
         f.write_str("PublicationId(..)")
     }
 }
+
+/// A shareable isolation slot. Equal descriptions are not equal identities.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct IsolationId(Identity);
+impl IsolationId {
+    /// Allocate an independent service realm.
+    pub fn new() -> Self {
+        Self(Identity(Rc::new(())))
+    }
+}
+impl Default for IsolationId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl fmt::Debug for IsolationId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("IsolationId(..)")
+    }
+}

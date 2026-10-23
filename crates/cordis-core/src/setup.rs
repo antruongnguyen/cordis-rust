@@ -267,6 +267,11 @@ impl Context {
             stop: Rc::new(Cell::new(false)),
             result: receiver,
         };
+        {
+            let mut acquisitions = owner.acquisitions.borrow_mut();
+            acquisitions.retain(|flag| flag.strong_count() > 0);
+            acquisitions.push(Rc::downgrade(&setup_state.stop));
+        }
         let mut registration = self.on_dispose({
             let setup = setup_state.clone();
             let resources = resources.clone();

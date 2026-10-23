@@ -55,8 +55,32 @@ impl Key {
 /// ```compile_fail
 /// use cordis_core::{Runtime, Event, DispatchOptions};
 /// let runtime = Runtime::new();
-/// let event = Event::<u32>::named("count");
-/// let _ = runtime.context().emit(&event, "wrong argument", DispatchOptions::default());
+/// let event = Event::<u32, String>::symbol("ready");
+/// let _ = runtime.context().bail(&event, "wrong argument", DispatchOptions::default());
+/// ```
+///
+/// ```
+/// use cordis_core::{DispatchOptions, Event, Listener, Runtime};
+/// use std::{convert::Infallible, ops::ControlFlow};
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let executor = tokio::runtime::Builder::new_current_thread().build()?;
+/// executor.block_on(async {
+///     let runtime = Runtime::new();
+///     runtime.run(async {
+///         let ctx = runtime.context();
+///         let ready = Event::<u32, String>::symbol("ready");
+///         ctx.on(&ready, Listener::sync(|_, count: u32| {
+///             Ok::<_, Infallible>(ControlFlow::Break(count.to_string()))
+///         }))?;
+///         if let ControlFlow::Break(answer) = ctx.bail(&ready, 7, DispatchOptions::default())? {
+///             assert_eq!(answer.to_uppercase(), "7");
+///         } else { panic!("missing typed answer"); }
+///         ctx.drain()?.await?;
+///         Ok::<_, Box<dyn std::error::Error>>(())
+///     }).await??;
+///     Ok::<_, Box<dyn std::error::Error>>(())
+/// })
+/// # }
 /// ```
 pub struct Event<A, R = ()> {
     key: Key,
@@ -134,6 +158,24 @@ enum Kind<A, R> {
 
 /// Explicit callback shape. Sync and async responders support emit/parallel/
 /// serial; bail requires sync responders; waterfall requires around callbacks.
+///
+/// ```compile_fail
+/// use cordis_core::{Event, Listener, Runtime};
+/// use std::{convert::Infallible, ops::ControlFlow};
+/// let event = Event::<u32, String>::symbol("ready");
+/// let _ = Runtime::new().context().on(&event, Listener::sync(|_, count: String| {
+///     Ok::<_, Infallible>(ControlFlow::Break(count))
+/// }));
+/// ```
+///
+/// ```compile_fail
+/// use cordis_core::{Event, Listener, Runtime};
+/// use std::{convert::Infallible, ops::ControlFlow};
+/// let event = Event::<u32, String>::symbol("ready");
+/// let _ = Runtime::new().context().on(&event, Listener::sync(|_, _: u32| {
+///     Ok::<_, Infallible>(ControlFlow::Break(42_u32))
+/// }));
+/// ```
 pub struct Listener<A, R>(Rc<Kind<A, R>>);
 impl<A, R> Clone for Listener<A, R> {
     fn clone(&self) -> Self {

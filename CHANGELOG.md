@@ -8,6 +8,15 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
+- M6 logger intercept/name/verbosity precedence, nested service attribution,
+  normalized names, inspectable weak Fiber metadata, explicit cause/aggregate
+  error values, exact error identities, bounded per-line formatting, and ANSI palettes.
+- Explicit initialized-plugin and method-injection adapters, registered-symbol/
+  callback/source/accessor/invocation compile-time checks, and an end-to-end
+  isolated lifecycle/configuration example exercised by integration tests.
+- M6 parity/deviation audit and 18 new integration cases (146 total), plus
+  seven additional Rustdoc checks (17 total). Rust 1.85 and existing dependencies
+  remain unchanged; no proc macros, satellite crates, or schema dependencies.
 - M5 isolation identities and boundary history, scoped typed publications,
   explicit definition/use-site bound calls, intercept merging, event filtering,
   typed accessor/mixin/associated/callable equivalents, and captured-holder tracing.
@@ -67,5 +76,10 @@ This project does not yet follow semantic versioning — the API is unstable.
   `docs/{todo,decision,limitation}.md`.
 
 ### Fixed
+- Service availability hooks notify current publications exactly once per
+  transition, without treating retired bindings or an already-inactive owner's
+  journal pause as a new availability change.
+- Lifecycle disposal joining an earlier journal drain also claims later-admitted
+  effects before releasing committed providers; reusable manual drains remain snapshots.
 - Lifecycle drains no longer retain the local executor across dependent cleanup
   waits, so host destruction cancels those waits rather than retaining the host.

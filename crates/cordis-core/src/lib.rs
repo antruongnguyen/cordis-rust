@@ -1,10 +1,11 @@
-//! Cordis M5: local plugin lifecycle, explicitly scoped services, and config updates.
+//! Cordis: local plugin lifecycle, explicitly scoped services, and config updates.
 //!
 //! Typed plugin grouping, validation, initial load, restart, and parent-owned
 //! disposal, named service publication, checked/direct lookup, and retained
 //! dependency snapshots are implemented, including isolated slots, explicit
 //! bound calls/intercepts, typed reflection/hooks and config update/recovery.
-//! Complete logging and final core acceptance belong to M6.
+//! Logging, explicit initialization/method injection, public type checks, and
+//! core acceptance are implemented. This is not transparent JS Proxy reflection.
 //!
 //! ```
 //! use cordis_core::Runtime;
@@ -35,7 +36,7 @@
 //!
 //! Contexts, registrations, and completion handles are local, not Send or Sync.
 //! The host must remain alive and driven until cleanup finishes. See
-//! `docs/m1.md` through `docs/m5.md` in the repository
+//! `docs/m1.md` through `docs/m6.md` in the repository
 //! for ownership, dispatch, composition, lifecycle, and cancellation contracts.
 
 mod context;
@@ -64,7 +65,10 @@ pub use events::{
     ListenerRegistration, Next,
 };
 pub use identity::{FiberId, IsolationId, PublicationId, RuntimeId};
-pub use logger::{ExporterOptions, ExporterRegistration, Level, LogError, LogRecord, Logger};
+pub use logger::{
+    ColorDepth, ErrorValue, ExporterOptions, ExporterRegistration, Level, LogError, LogRecord,
+    Logger, LoggerConfig, WeakFiber,
+};
 pub use plugin::{
     FiberHandle, FiberState, LifecycleError, LifecycleTask, Plugin, Registry, UpdateOptions,
 };

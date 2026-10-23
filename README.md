@@ -3,15 +3,17 @@
 A Rust reimplementation of [Cordis](https://github.com/cordiverse/cordis) — a
 meta-framework for spatiotemporal composability.
 
-> **Status: M5 explicit scoped reflection and config updates implemented.**
+> **Status: M0-M6 Rust core delivery and acceptance implemented.**
 > The unpublished `cordis-core` has local
 > hosting, typed plugins/Registry grouping, scoped effects and diagnostics,
 > typed events, validation, restart, parent-owned disposal, typed service
 > publication/lookup, and dependency-driven injection convergence.
 > It also has isolation boundaries, explicit bound service calls/intercepts,
 > typed reflection/hooks, config updates/recovery, and latest-target convergence.
-> Complete logging and the final parity/deviation review remain M6;
-> transparent JavaScript Proxy/decorator syntax is not a Rust API promise.
+> M6 adds traced/configured logging, error cause/aggregate adapters, weak lifecycle
+> metadata, explicit initialization/method injection, type checks, and an end-to-end example.
+> This is an unpublished explicit Rust API, not transparent JavaScript
+> Proxy/decorator compatibility or a claim of unrestricted TS parity.
 > The concept map below remains the framework target, not a shipped feature list.
 
 ## Why
@@ -84,9 +86,11 @@ Cargo resolver 3. From the repository root:
 cargo test --workspace --locked
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo run -p cordis-core --example lifecycle --locked
 ```
 
-See [M5 scope/update APIs](docs/m5.md), [M4 service APIs](docs/m4.md), [M3 lifecycle APIs](docs/m3.md),
+See [M6 acceptance and compatibility](docs/m6.md), [M5 scope/update APIs](docs/m5.md),
+[M4 service APIs](docs/m4.md), [M3 lifecycle APIs](docs/m3.md),
 [M2 APIs](docs/m2.md), and the examples in the
 [`cordis-core` crate docs](crates/cordis-core/src/lib.rs). The runtime must be
 explicitly driven from Tokio; Context values do not keep their host alive.
@@ -104,6 +108,7 @@ See [M0 results](docs/m0.md) for evidence, selected design directions, and limit
 
 ## Documentation
 
+- [`docs/m6.md`](docs/m6.md) — logger/error APIs, explicit injection adapters, executable example, and parity/deviation audit.
 - [`docs/m5.md`](docs/m5.md) — isolation, bound calls, typed reflection/hooks, and configuration convergence.
 - [`docs/m4.md`](docs/m4.md) — typed services, checked/direct lookup, injection convergence, and exact-provider retention.
 - [`docs/m3.md`](docs/m3.md) — typed plugins, Registry, scoped resources, and base lifecycle.

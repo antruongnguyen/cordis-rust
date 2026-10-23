@@ -33,13 +33,13 @@ and behavioral tests, not just public type declarations.
   labels/tree introspection, five typed dispatch modes, listener snapshot
   filtering/cleanup, and core diagnostics. See [m2.md](m2.md) for contracts and
   explicit Rust equivalents. M3 now integrates plugin-owned disposal; the
-  special internal-update listener protocol is tracked under M5. These are not
+  special internal-update listener protocol is implemented under M5. These are not
   claims of complete plugin/event/service suite parity.
 - [x] M3 (base lifecycle): Registry identity/grouping, observable Fiber states,
   typed source/resolved validation, supervised restart/disposal, parent-owned
   child/listener/exporter cleanup, and reusable-root disposal; see [m3.md](m3.md).
-  Dependency-driven Pending is M4; config updates/recovery and internal status/
-  update hook protocols remain M5. Complete upstream suite parity is not claimed.
+  M4 adds dependency-driven Pending; M5 adds config updates/recovery and internal
+  status/update hook protocols. Complete upstream suite parity is not claimed.
 - [x] M4 (global slots): Reflect/Service typed publication and lookup, injection resolution,
   Pending/Active convergence, committed snapshots, and exact-provider retention
   through consumer cleanup (including consumers removed from the Registry).
@@ -51,8 +51,10 @@ and behavioral tests, not just public type declarations.
   isolation-dependent service-disposal cases. See [m5.md](m5.md) for contracts,
   safety deviations, and explicit replacements for JavaScript reflection.
   Remaining case-level evidence is reviewed under M6, not inferred from API names.
-- [ ] M6: Complete core Logger behavior, decorator-injection equivalents,
+- [x] M6 (explicit Rust acceptance): Core Logger behavior, decorator-injection equivalents,
   compile-time API checks, an end-to-end example, and a parity/deviation review.
+  See [m6.md](m6.md). Checked cases include documented Rust representations,
+  not unrestricted JavaScript object/property/reflection compatibility.
 
 ## Satellite packages
 
@@ -66,8 +68,12 @@ Only after M6. Choose the next package from concrete application needs:
 ## Cross-cutting
 
 - [x] Initial TS-to-Rust mapping and source-backed testing strategy documented.
-- [ ] Maintain case-level parity evidence and explicit limitations as code lands.
-- [ ] Prove error reporting, dropped-waiter behavior, and resource retention
+- [x] Maintain case-level parity evidence and explicit limitations through M6.
+- [x] Prove error reporting, dropped-waiter behavior, and resource retention
   without strong-reference leaks; do not equate Rust Drop with async cleanup.
-- [ ] Run targeted tests per slice, then full workspace/doc tests, lint, and
+- [x] Run targeted tests per slice, then full workspace/doc tests, lint, and
   declared-MSRV/current-stable checks before core acceptance.
+
+Future work must preserve these checks. Arbitrary user-created Rc cycles,
+executor destruction, and the explicit compatibility restrictions in M6 are
+not promises of automatic cleanup or full upstream syntax parity.

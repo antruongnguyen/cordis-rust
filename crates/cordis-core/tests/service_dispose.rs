@@ -12,6 +12,54 @@ use std::{
 };
 use tokio::sync::oneshot;
 
+#[tokio::test(flavor = "current_thread")]
+async fn lifecycle_disposal_joins_a_prior_journal_drain_then_cleans_later_effects_before_releasing_providers()
+ {
+    bounded(async {
+        let runtime = Runtime::new();
+        let root = runtime.context();
+        runtime
+            .run(async {
+                let key = ServiceKey::<Probe>::new("foo");
+                let probe = Probe::new();
+                let provider = provider(&root, &key, &probe).await;
+                let (consumer, first_entered, first_release) = gated_consumer(&root, &key);
+                consumer.ready().unwrap().await.unwrap();
+                let prior = consumer.context().drain().unwrap();
+                first_entered.await.unwrap();
+                let (second_started, second_entered) = oneshot::channel();
+                let (second_release, second_gate) = oneshot::channel();
+                let ctx = consumer.context();
+                let cleanup_ctx = ctx.clone();
+                let cleanup_key = key.clone();
+                ctx.on_dispose(move || async move {
+                    second_started.send(()).unwrap();
+                    second_gate.await.unwrap();
+                    cleanup_ctx.get(&cleanup_key)?.unwrap().read();
+                    Ok::<_, BoxError>(())
+                })
+                .unwrap();
+                let disposing_consumer = consumer.dispose().unwrap();
+                let disposing_provider = provider.dispose().unwrap();
+                assert!(root.registry().is_empty().unwrap());
+                first_release.send(()).unwrap();
+                second_entered.await.unwrap();
+                assert!(probe.open.get());
+                assert_eq!(consumer.state(), FiberState::Unloading);
+                second_release.send(()).unwrap();
+                disposing_consumer.await.unwrap();
+                disposing_provider.await.unwrap();
+                assert_eq!(prior.await.unwrap().attempted(), 1);
+                assert_eq!(*probe.trace.borrow(), ["read", "read", "closed"]);
+                assert!(consumer.context().get_effects().unwrap().is_empty());
+                root.drain().unwrap().await.unwrap();
+            })
+            .await
+            .unwrap();
+    })
+    .await;
+}
+
 async fn bounded(future: impl std::future::Future<Output = ()>) {
     tokio::time::timeout(std::time::Duration::from_secs(5), future)
         .await

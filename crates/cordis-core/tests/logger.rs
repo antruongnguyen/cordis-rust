@@ -1,10 +1,265 @@
-//! Minimal core diagnostics; full traced naming/formatting remains M6.
-use cordis_core::{ExporterOptions, Level, LogError, Runtime};
+//! Core diagnostics plus M6 traced naming, error identity, formatting, and palette evidence.
+use cordis_core::{
+    BoxError, ColorDepth, ErrorValue, ExporterOptions, Level, LogError, LoggerConfig, Plugin,
+    Runtime, ServiceKey,
+};
 use std::{
     cell::{Cell, RefCell},
     convert::Infallible,
     rc::Rc,
 };
+
+#[tokio::test(flavor = "current_thread")]
+async fn nested_service_names_restore_and_explicit_and_intercept_names_have_correct_precedence() {
+    let runtime = Runtime::new();
+    runtime
+        .run(async {
+            let root = runtime.context();
+            let logger = ServiceKey::<()>::new("logger");
+            let inner = ServiceKey::<()>::new("inner");
+            let outer = ServiceKey::<()>::new("outer");
+            let records = Rc::new(RefCell::new(Vec::new()));
+            root.add_exporter(
+                ExporterOptions {
+                    default_level: Some(Level::Debug),
+                    ..Default::default()
+                },
+                {
+                    let records = records.clone();
+                    move |record| {
+                        records.borrow_mut().push(record.clone());
+                        Ok::<_, Infallible>(())
+                    }
+                },
+            )
+            .unwrap();
+            let inner_fiber = root
+                .plugin(
+                    &Plugin::initialized("BarDriver", {
+                        let inner = inner.clone();
+                        move |ctx, ()| {
+                            let inner = inner.clone();
+                            async move {
+                                ctx.provide(&inner, ())?;
+                                ctx.logger(None).debug("initializing")?;
+                                Ok::<_, BoxError>(cordis_core::Disposer::sync(|| {
+                                    Ok::<_, Infallible>(())
+                                }))
+                            }
+                        }
+                    }),
+                    (),
+                )
+                .unwrap();
+            inner_fiber.ready().unwrap().await.unwrap();
+            assert_eq!(records.borrow()[0].name, "bar-driver");
+            let outer_fiber = root
+                .plugin(
+                    &Plugin::new("FooDriver", {
+                        let outer = outer.clone();
+                        move |ctx, ()| {
+                            let outer = outer.clone();
+                            async move {
+                                ctx.provide(&outer, ())?;
+                                Ok::<_, BoxError>(())
+                            }
+                        }
+                    })
+                    .injecting([inner.required()]),
+                    (),
+                )
+                .unwrap();
+            outer_fiber.ready().unwrap().await.unwrap();
+            records.borrow_mut().clear();
+            root.bind(&outer).unwrap().call(|_, ctx| {
+                ctx.bind(&inner)
+                    .unwrap()
+                    .call(|_, nested| nested.logger(None).debug("inner").unwrap());
+                ctx.logger(None).debug("outer").unwrap();
+            });
+            assert_eq!(
+                records
+                    .borrow()
+                    .iter()
+                    .map(|r| (r.name.as_str(), r.message.as_str()))
+                    .collect::<Vec<_>>(),
+                [("bar-driver", "inner"), ("foo-driver", "outer")]
+            );
+            assert_eq!(records.borrow()[0].fiber, *inner_fiber.id());
+            assert_eq!(records.borrow()[1].fiber, *outer_fiber.id());
+            let overridden = root.intercept(
+                &logger,
+                LoggerConfig {
+                    name: Some("caller".into()),
+                    level: Some(Level::Debug),
+                },
+            );
+            overridden.bind(&outer).unwrap().call(|_, ctx| {
+                ctx.bind(&inner)
+                    .unwrap()
+                    .call(|_, nested| nested.logger(None).debug("override").unwrap());
+                assert_eq!(
+                    ctx.logger(Some("explicit")).info("named").unwrap().name,
+                    "explicit"
+                );
+            });
+            assert_eq!(records.borrow()[2].name, "caller");
+            let cached = overridden.logger(None);
+            let changed = overridden.intercept(
+                &logger,
+                LoggerConfig {
+                    name: Some("later".into()),
+                    ..Default::default()
+                },
+            );
+            assert_eq!(cached.info("cached").unwrap().name, "caller");
+            assert_eq!(changed.logger(None).info("new").unwrap().name, "later");
+            let count = root.log_buffer().unwrap().len();
+            assert!(matches!(
+                root.intercept(&logger, 3_u32).logger(None).info("bad"),
+                Err(LogError::Configuration(_))
+            ));
+            assert_eq!(root.log_buffer().unwrap().len(), count);
+            root.drain().unwrap().await.unwrap();
+        })
+        .await
+        .unwrap();
+}
+
+#[test]
+fn error_causes_and_aggregates_preserve_empty_aggregates_exact_sources_and_order() {
+    let runtime = Runtime::new();
+    let logger = runtime.context().logger(None);
+    let inner = Rc::new(std::io::Error::other("inner"));
+    let empty = logger
+        .log_error(
+            Level::Warn,
+            ErrorValue::new(std::io::Error::other("empty")).with_members(vec![]),
+        )
+        .unwrap();
+    assert_eq!(empty.len(), 1);
+    assert_eq!(empty[0].message, "empty");
+    let flattened = logger
+        .log_error(
+            Level::Warn,
+            ErrorValue::new(std::io::Error::other("outer"))
+                .with_members(vec![ErrorValue::from_rc(inner.clone())]),
+        )
+        .unwrap();
+    assert_eq!(flattened.len(), 1);
+    assert_eq!(flattened[0].message, "inner");
+    let exact = std::error::Error::source(flattened[0].failure.as_ref().unwrap())
+        .unwrap()
+        .downcast_ref::<std::io::Error>()
+        .unwrap();
+    assert!(std::ptr::eq(exact, Rc::as_ref(&inner)));
+    let caused = logger
+        .log_error(
+            Level::Error,
+            ErrorValue::new(std::io::Error::other("outer"))
+                .with_members(vec![ErrorValue::new(std::io::Error::other(
+                    "ignored member",
+                ))])
+                .with_cause(ErrorValue::from_rc(inner)),
+        )
+        .unwrap();
+    assert_eq!(
+        caused
+            .iter()
+            .map(|record| record.message.as_str())
+            .collect::<Vec<_>>(),
+        ["inner", "outer"]
+    );
+    assert!(caused[0].sequence < caused[1].sequence);
+    assert_eq!(runtime.context().log_buffer().unwrap().len(), 4);
+}
+
+#[test]
+fn formatting_obeys_per_line_utf16_budgets_crlf_and_exact_palette_shapes() {
+    let runtime = Runtime::new();
+    let logger = runtime.context().logger(None);
+    let record = logger.info("x".repeat(10241)).unwrap();
+    assert_eq!(record.format(10240), format!("{}...", "x".repeat(10240)));
+    assert_eq!(logger.info("a\r\nb\r\n").unwrap().format(1), "a\nb\n");
+    assert_eq!(logger.info("a\r").unwrap().format(3), "a\r");
+    assert_eq!(logger.info("abc").unwrap().format(0), "...");
+    assert_eq!(logger.info("").unwrap().format(0), "");
+    let unicode = logger.info("x\u{1f600}y").unwrap();
+    assert_eq!(unicode.format(2), "x...");
+    assert_eq!(unicode.format(3), "x\u{1f600}...");
+    assert_eq!(unicode.format(4), "x\u{1f600}y");
+    assert_eq!(record.color("value", ColorDepth::None), "value");
+    assert_eq!(
+        record.color("value", ColorDepth::Ansi16),
+        "\u{1b}[36mvalue\u{1b}[0m"
+    );
+    assert_eq!(
+        record.color("value", ColorDepth::Ansi256),
+        "\u{1b}[38;5;41mvalue\u{1b}[0m"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn normalized_diagnostic_names_keep_acronyms_delimiters_and_nonowning_attribution() {
+    let runtime = Runtime::new();
+    runtime
+        .run(async {
+            let root = runtime.context();
+            let fiber = root
+                .plugin(
+                    &Plugin::new("HTTPServer_ID", |_, ()| async {
+                        Err::<(), _>(std::io::Error::other("failed"))
+                    }),
+                    (),
+                )
+                .unwrap();
+            assert!(fiber.ready().unwrap().await.is_err());
+            let buffer = root.log_buffer().unwrap();
+            assert_eq!(buffer.last().unwrap().name, "http-server-id");
+            assert_eq!(buffer.last().unwrap().fiber, *fiber.id());
+            let logger = fiber.context().logger(None);
+            fiber.dispose().unwrap().await.unwrap();
+            let record = logger.info("after disposal").unwrap();
+            assert_eq!(record.name, "http-server-id");
+            assert_eq!(
+                record.fiber_ref.snapshot().unwrap().state,
+                cordis_core::FiberState::Disposed
+            );
+            drop(fiber);
+            assert!(
+                record.fiber_ref.snapshot().is_none(),
+                "log metadata must not retain the disposed Fiber"
+            );
+            for (name, expected) in [
+                ("_foo__Bar", "foo-bar"),
+                ("foo2Bar", "foo2-bar"),
+                ("2Foo", "2foo"),
+                ("foo:Driver", "foo:-driver"),
+            ] {
+                let instance = root
+                    .plugin(
+                        &Plugin::new(name, |_, ()| async { Ok::<_, Infallible>(()) }),
+                        (),
+                    )
+                    .unwrap();
+                instance.ready().unwrap().await.unwrap();
+                assert_eq!(instance.context().name(), name);
+                assert_eq!(
+                    instance
+                        .context()
+                        .logger(None)
+                        .info("normalize")
+                        .unwrap()
+                        .name,
+                    expected
+                );
+                instance.dispose().unwrap().await.unwrap();
+            }
+            root.drain().unwrap().await.unwrap();
+        })
+        .await
+        .unwrap();
+}
 
 #[test]
 fn default_buffer_has_exact_capacity_chronological_order_and_root_attribution() {

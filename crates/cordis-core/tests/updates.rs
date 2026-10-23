@@ -516,7 +516,22 @@ async fn source_transformation_hooks_run_before_validation_and_schema_contract_m
             )
             .unwrap();
             let failed = root.plugin(&plugin, 1).unwrap();
-            assert!(failed.ready().unwrap().await.is_err());
+            let error = failed.ready().unwrap().await.unwrap_err();
+            let LifecycleError::Callback(error) = error else {
+                panic!("wrong error kind");
+            };
+            let source = std::error::Error::source(&error)
+                .unwrap()
+                .downcast_ref::<cordis_core::ServiceError>()
+                .unwrap();
+            assert!(matches!(
+                source,
+                cordis_core::ServiceError::TypeMismatch {
+                    expected: "i32",
+                    actual: "&str",
+                    ..
+                }
+            ));
             assert_eq!(failed.state(), FiberState::Failed);
             assert_eq!(runtime.take_failures().len(), 1);
             root.drain().unwrap().await.unwrap();

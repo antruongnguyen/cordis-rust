@@ -1,8 +1,8 @@
 # Cordis Rust implementation plan
 
-Status: M5's explicit scoped reflection, typed hooks, and config updates are
-implemented on M4's retained publications and M3's base lifecycle.
-See [M5 contracts](m5.md), [M4 scope](m4.md), [M3 scope](m3.md), [M2 scope](m2.md),
+Status: M0-M6's explicit Rust core delivery and acceptance are implemented.
+See [M6 acceptance/compatibility audit](m6.md), [M5 contracts](m5.md),
+[M4 scope](m4.md), [M3 scope](m3.md), [M2 scope](m2.md),
 [M1 contracts](m1.md), [M0 results](m0.md),
 and the [case checklist](m0-cases.md).
 Target the TypeScript core using **Rust edition 2024**. A newer stable edition
@@ -318,7 +318,7 @@ finishing a slice does not imply full core parity.
 | M3: Registry and base Fiber | M2 | Plugin grouping, per-instance handles, source/resolved config, initial load/failure, parent-owned children, restart/idempotent disposal, Registry removal, reusable-root disposal. Port relevant `plugin.spec.ts` and `fiber.spec.ts`; waiters observe errors and cleanup completion. |
 | M4: publication and injection convergence | M3 and gate B | Implemented for global named slots: strict/direct access, owned set/provide, provider checks, committed bindings, Pending/Active transitions, dependency-driven unload/reload, and removed-consumer retention without blocking unrelated cleanup. See `m4.md` for integrated cases; isolation/tracing-dependent cases in `reflect.spec.ts`, `service.spec.ts`, and `service-dispose.spec.ts` remain M5/M6. |
 | M5: traced scoping and updates | M4 | Implemented with explicit Rust adapters: isolation boundaries, own/injected views, intercept precedence/custom merging, bound calls, accessors/mixins/associations/invocation, typed internal hooks, and update/noSave/validation/recovery/latest-target coalescing. See `m5.md` and the case checklist for tested representations and deviations; native JS property/decorator syntax is not implemented. |
-| M6: core acceptance | M5 | Finish logger semantics/`logger.spec.ts`, decorator-injection equivalents, type checks corresponding to `events.types.ts`, end-to-end example, parity/deviation review, and API/error/cleanup docs. Every source-map area has evidence or an explicit limitation. |
+| M6: core acceptance | M5 | Implemented: logger names/levels/weak metadata/error/format adapters, explicit initialization/method injection, public type checks, a tested end-to-end example and compatibility audit. Every source-map area has integrated evidence or an explicit Rust representation/restriction; this is not unrestricted JS reflection compatibility. See `m6.md`. |
 
 After M6 choose satellites from application needs: likely timer, then console
 logging or loader. Timer cleanup reuses effects; file formats/serialization
@@ -399,8 +399,9 @@ M2 completes root effects with sync timing/introspection, typed dispatch, and
 diagnostics. M3 adds supervised plugin lifecycle and scoped resource ownership;
 M4 adds typed publication, injection convergence, and exact-provider retention;
 M5 adds isolated/bound service views, typed reflection/hooks and config updates.
-Still open for M6: complete logging, injection/decorator adapters, compile-time
-API checks, an end-to-end example, and the final parity/deviation review.
+M6 completes logger and injection adapters, compile-time API checks, the
+end-to-end example and parity/deviation audit. The [M6 contract](m6.md) records
+the supported Rust surface and remaining compatibility restrictions.
 Automatic JS Proxy reflection and Standard Schema discovery are not Rust APIs.
 Gates/milestones own these decisions; they are not
 permission to omit behavior silently. Keep [todo.md](todo.md),

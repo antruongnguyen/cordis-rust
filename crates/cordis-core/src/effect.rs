@@ -164,8 +164,14 @@ impl CleanupFailure {
         !self.reported.replace(true)
     }
     pub(crate) fn returned(error: BoxError) -> Self {
+        match error.downcast::<Self>() {
+            Ok(failure) => *failure,
+            Err(error) => Self::from_source(Rc::from(error)),
+        }
+    }
+    pub(crate) fn from_source(source: Rc<dyn Error>) -> Self {
         Self {
-            source: Rc::from(error),
+            source,
             panicked: false,
             reported: Rc::new(Cell::new(false)),
         }

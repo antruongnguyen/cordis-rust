@@ -4,6 +4,34 @@ A lightweight log of decisions made for this project and the reasoning behind
 them. Newest first. This is intentionally not a heavy ADR process; it records
 *what we chose and why* so the choices aren't re-litigated silently.
 
+## 2026-10-23 — M6 completes explicit Rust logging and acceptance
+
+Logger acquisition caches explicit name, then use-site logger intercept, then
+the normalized definition-Fiber name. Nested bound calls restore outer names.
+Malformed typed intercepts remain an error in the handle and fail logging before
+formatting/export, rather than falling back silently. Records retain stable
+identity plus a weak current lifecycle snapshot, never a strong Fiber.
+
+Use finite owned `ErrorValue` trees to represent JS cause/aggregate metadata.
+Nonempty aggregates flatten recursively, empty aggregates log themselves, and
+causes precede their outer error. Records retain the exact error allocation.
+Rust Display/Debug and exporter closures replace JS printf/formatter dictionaries;
+per-line UTF-16 budgets and the pinned ANSI palettes have measured tests.
+Never split a Rust Unicode scalar merely to mimic a lone JS surrogate.
+Default name tokenization follows cosmokit 1.8.1's source (not a guessed regex).
+
+`Plugin::initialized` explicitly awaits an initializer's acquired disposer.
+`Context::inject_method` explicitly binds an Rc target to a dependency-owned
+child, replacing decorator/constructor discovery without proc macros.
+Forwarding an already-normalized callback failure preserves its diagnostic
+claim, so failed initializers report once.
+
+**Why:** Native Rust types cannot transparently implement JS property/prototype
+reflection or inspect arbitrary Error properties. Explicit typed adapters keep
+the useful lifecycle/configuration contracts while making representation
+restrictions testable and honest. The same production example runs standalone
+and under integration tests. See [M6 audit](m6.md), not a blanket TS parity claim.
+
 ## 2026-10-23 — M5 uses explicit bound views, not transparent Rust pointers
 
 Keep M4 `Rc<T>` reads unchanged. Add `BoundService<T>` with an explicit method

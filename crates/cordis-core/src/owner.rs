@@ -12,6 +12,7 @@ use std::{
 tokio::task_local! { static CALLBACKS: Vec<FiberId>; }
 
 pub(crate) struct Owner {
+    pub(crate) weak: Weak<Owner>,
     pub(crate) id: FiberId,
     pub(crate) name: String,
     pub(crate) live: Cell<bool>,
@@ -29,7 +30,8 @@ pub(crate) struct Owner {
 }
 impl Owner {
     pub(crate) fn new(name: String) -> Rc<Self> {
-        Rc::new(Self {
+        Rc::new_cyclic(|weak| Self {
+            weak: weak.clone(),
             id: FiberId::new(),
             name,
             live: Cell::new(true),
@@ -52,7 +54,8 @@ impl Owner {
         dependencies: Vec<crate::Dependency>,
         scope: Option<Rc<crate::context::IsolationLayer>>,
     ) -> Rc<Self> {
-        Rc::new(Self {
+        Rc::new_cyclic(|weak| Self {
+            weak: weak.clone(),
             id: FiberId::new(),
             name,
             live: Cell::new(true),
@@ -71,6 +74,15 @@ impl Owner {
     }
     pub(crate) fn is_root(&self) -> bool {
         self.root
+    }
+    pub(crate) fn services_active(&self) -> bool {
+        !self.services_paused.get()
+            && (self.root
+                || self
+                    .fiber
+                    .borrow()
+                    .upgrade()
+                    .is_some_and(|fiber| fiber.state() == crate::FiberState::Active))
     }
     pub(crate) fn stop_acquisitions(&self) {
         let flags: Vec<_> = self

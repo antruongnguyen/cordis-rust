@@ -1,6 +1,5 @@
 use crate::{
-    AdmissionError, BoxError, Completion, Context, Effect, FiberId, FiberState, IsolationId,
-    PublicationId,
+    AdmissionError, BoxError, Completion, Context, Effect, FiberId, IsolationId, PublicationId,
     effect::{self, Cleanup},
     owner::Owner,
     runtime::State,
@@ -236,15 +235,9 @@ impl Publication {
             })
     }
     fn available(&self) -> bool {
-        self.provider.upgrade().is_some_and(|owner| {
-            !owner.services_paused.get()
-                && (owner.is_root()
-                    || owner
-                        .fiber
-                        .borrow()
-                        .upgrade()
-                        .is_some_and(|fiber| fiber.state() == FiberState::Active))
-        })
+        self.provider
+            .upgrade()
+            .is_some_and(|owner| owner.services_active())
     }
     pub(crate) fn retain(&self, owner: &Owner) {
         if self
@@ -359,12 +352,20 @@ pub(crate) fn resolve(state: &State, ctx: &Context, dependency: &Dependency) -> 
 }
 
 pub(crate) fn notify(state: &Rc<State>, host: &LocalSet, owner: &Owner) {
-    let names: Vec<_> = owner
-        .provisions
-        .borrow()
-        .iter()
-        .map(|publication| (publication.name.clone(), publication.slot.clone()))
-        .collect();
+    let names: Vec<_> = {
+        let current = state.services.current.borrow();
+        owner
+            .provisions
+            .borrow()
+            .iter()
+            .filter(|publication| {
+                current
+                    .get(&publication.slot)
+                    .is_some_and(|entry| Rc::ptr_eq(entry, publication))
+            })
+            .map(|publication| (publication.name.clone(), publication.slot.clone()))
+            .collect()
+    };
     notify_slots(state, host, &names);
 }
 
@@ -710,6 +711,10 @@ impl Context {
 
     /// Bind checked service access to separate definition and use contexts.
     pub fn bind<T: 'static>(&self, key: &ServiceKey<T>) -> Result<BoundService<T>, ServiceError> {
+        let _state = self
+            .runtime
+            .upgrade()
+            .ok_or(AdmissionError::RuntimeDropped)?;
         let (publication, config) = if self.definition_site().owner()?.is_root() {
             return self.bind_direct_inner(key, false);
         } else {
@@ -903,8 +908,15 @@ impl<T: 'static> BoundService<T> {
     /// Access a dotted associated service with the original access authority,
     /// rather than accidentally borrowing this service's own dependency rights.
     pub fn associated<U: 'static>(&self, property: &str) -> Result<BoundService<U>, ServiceError> {
-        self.access
-            .bind(&ServiceKey::new(format!("{}.{}", self.name, property)))
+        self.associated_key(&ServiceKey::new(format!("{}.{}", self.name, property)))
+    }
+    /// Select an explicitly named associated-type extension, retaining the same
+    /// original access authority even when its namespace differs from the service.
+    pub fn associated_key<U: 'static>(
+        &self,
+        key: &ServiceKey<U>,
+    ) -> Result<BoundService<U>, ServiceError> {
+        self.access.bind(key)
     }
     /// Extend a service/holder while keeping its exact definition/use views.
     pub fn map<U: 'static>(&self, extend: impl FnOnce(&T) -> U) -> BoundService<U> {
@@ -950,6 +962,18 @@ impl<T: 'static> BoundService<T> {
 }
 
 /// Stable Rust equivalent of a callable service object.
+///
+/// ```compile_fail
+/// use cordis_core::{BoxError, Context, Runtime, ServiceInvoke, ServiceKey};
+/// struct Callable;
+/// impl ServiceInvoke<u32> for Callable {
+///     type Output = u32;
+///     fn invoke(&self, _: Context, value: u32) -> Result<u32, BoxError> { Ok(value) }
+/// }
+/// let runtime = Runtime::new();
+/// let bound = runtime.context().bind(&ServiceKey::<Callable>::new("callable")).unwrap();
+/// let _ = bound.invoke("wrong argument");
+/// ```
 pub trait ServiceInvoke<A> {
     /// Typed invocation result.
     type Output;
@@ -969,13 +993,12 @@ impl Context {
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
         let slot = state.services.slot(self, key.name());
-        let runtime = Rc::downgrade(&state);
-        let name = key.name().to_owned();
+        let key = key.clone();
         Ok(crate::DispatchOptions::filtered(move |target| {
-            let state = runtime
-                .upgrade()
-                .expect("event dispatch retains its runtime");
-            state.services.slot(target, &name) == slot
+            target
+                .isolation(&key)
+                .expect("dispatch retains each listener's runtime")
+                == slot
         }))
     }
     /// Explicit unchecked direct lookup, including Loading/Unloading providers.

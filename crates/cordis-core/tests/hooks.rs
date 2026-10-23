@@ -312,3 +312,74 @@ async fn get_set_and_realm_service_hooks_preserve_contracts_and_set_does_not_not
         .await
         .unwrap();
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn provider_transitions_notify_current_publications_once_not_retired_bindings_or_drain_pauses()
+ {
+    let runtime = Runtime::new();
+    let scenario = runtime.run(async {
+        let root = runtime.context();
+        let key = ServiceKey::<u32>::new("foo");
+        let observed = Rc::new(RefCell::new(Vec::new()));
+        root.on(
+            &hooks::service(),
+            Listener::sync({
+                let observed = observed.clone();
+                move |_, change: hooks::ServiceChange| {
+                    if change.name == "foo" {
+                        let value = change
+                            .value
+                            .map(|value| value.get::<u32>().map(|value| *value))
+                            .transpose()?;
+                        observed.borrow_mut().push(value);
+                    }
+                    Ok::<_, BoxError>(ControlFlow::Continue(()))
+                }
+            }),
+        )
+        .unwrap();
+        let provider = root
+            .plugin(
+                &Plugin::new("provider", |_, ()| async { Ok::<_, Infallible>(()) }),
+                (),
+            )
+            .unwrap();
+        provider.ready().unwrap().await.unwrap();
+        let old = provider.context().provide(&key, 1).unwrap();
+        let (started, entered) = tokio::sync::oneshot::channel();
+        let (release, gate) = tokio::sync::oneshot::channel();
+        let gates = RefCell::new(Some((started, gate)));
+        let consumer = root
+            .inject([key.required()], {
+                let key = key.clone();
+                move |ctx| {
+                    let key = key.clone();
+                    let (started, gate) = gates.borrow_mut().take().unwrap();
+                    async move {
+                        ctx.clone().on_dispose(move || async move {
+                            started.send(()).unwrap();
+                            gate.await.unwrap();
+                            assert_eq!(*ctx.get(&key)?.unwrap(), 1);
+                            Ok::<_, BoxError>(())
+                        })?;
+                        Ok::<_, BoxError>(())
+                    }
+                }
+            })
+            .unwrap();
+        consumer.ready().unwrap().await.unwrap();
+        let withdrawal = old.withdraw().unwrap();
+        provider.context().provide(&key, 2).unwrap();
+        let disposing = provider.dispose().unwrap();
+        entered.await.unwrap();
+        release.send(()).unwrap();
+        disposing.await.unwrap();
+        withdrawal.await.unwrap();
+        assert_eq!(*observed.borrow(), [Some(1), None, Some(2), Some(2), None]);
+        root.drain().unwrap().await.unwrap();
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), scenario)
+        .await
+        .expect("service notification test stalled")
+        .unwrap();
+}

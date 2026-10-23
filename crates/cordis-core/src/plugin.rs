@@ -3,7 +3,7 @@ use crate::{
     LocalFuture, ServiceError, effect, hooks, owner::Owner, runtime::State, service,
 };
 use std::{
-    any::Any,
+    any::{Any, TypeId},
     cell::{Cell, RefCell},
     collections::{BTreeMap, HashMap},
     convert::Infallible,
@@ -41,6 +41,7 @@ struct Definition {
     validate: Box<Validate>,
     apply: Box<Apply>,
     source_type: &'static str,
+    source_contract: TypeId,
     resolved_type: &'static str,
 }
 
@@ -100,6 +101,26 @@ impl<C, R> Clone for Plugin<C, R> {
     }
 }
 impl<C: Clone + 'static> Plugin<C, C> {
+    /// Explicit Service.init equivalent. Await initialization, own its returned
+    /// disposer, and publish Active only after that acquisition settles.
+    pub fn initialized<F, Fut, E>(name: impl Into<String>, initialize: F) -> Self
+    where
+        F: Fn(Context, C) -> Fut + 'static,
+        Fut: Future<Output = Result<crate::Disposer, E>> + 'static,
+        E: Into<BoxError> + 'static,
+    {
+        let initialize = Rc::new(initialize);
+        Self::new(name, move |ctx, config| {
+            let initialize = initialize.clone();
+            async move {
+                let definition = ctx.clone();
+                let effect = ctx
+                    .effect_async(move || initialize(definition, config))
+                    .map_err(initialization_failure)?;
+                effect.ready().await.map_err(initialization_failure)
+            }
+        })
+    }
     /// Define a plugin with identity configuration validation.
     pub fn new<F, Fut, E>(name: impl Into<String>, apply: F) -> Self
     where
@@ -118,6 +139,14 @@ impl<C: 'static, R: 'static> Plugin<C, R> {
     /// Define synchronous source-to-resolved validation and asynchronous apply.
     /// Validation runs on every load, not before lifecycle admission. Typed
     /// validation errors retain their original structured source.
+    ///
+    /// ```compile_fail
+    /// use cordis_core::Plugin;
+    /// use std::convert::Infallible;
+    /// let _ = Plugin::validated("async validator",
+    ///     |_: &u32| async { Ok::<_, Infallible>(1_u32) },
+    ///     |_, _: u32| async { Ok::<_, Infallible>(()) });
+    /// ```
     pub fn validated<V, VE, F, Fut, E>(name: impl Into<String>, validate: V, apply: F) -> Self
     where
         V: Fn(&C) -> Result<R, VE> + 'static,
@@ -129,6 +158,7 @@ impl<C: 'static, R: 'static> Plugin<C, R> {
         let definition = Definition {
             name: name.into(),
             source_type: std::any::type_name::<C>(),
+            source_contract: TypeId::of::<C>(),
             resolved_type: std::any::type_name::<R>(),
             validate: Box::new(move |source| {
                 let config = source.downcast_ref::<C>().ok_or_else(|| {
@@ -171,9 +201,21 @@ impl<C: 'static, R: 'static> Plugin<C, R> {
     /// Declare required services for instances loaded through this declaration
     /// view. Clones keep their grouping identity; each Fiber captures its own list.
     /// Required dependencies may carry typed injection configuration.
+    /// Repeated names keep their first position and last contract/config,
+    /// matching upstream injection dictionary normalization.
     #[must_use]
     pub fn injecting(mut self, dependencies: impl IntoIterator<Item = Dependency>) -> Self {
-        self.dependencies = dependencies.into_iter().collect();
+        let mut normalized = Vec::new();
+        let mut indices = HashMap::new();
+        for dependency in dependencies {
+            if let Some(index) = indices.get(&dependency.name) {
+                normalized[*index] = dependency;
+            } else {
+                indices.insert(dependency.name.clone(), normalized.len());
+                normalized.push(dependency);
+            }
+        }
+        self.dependencies = normalized;
         self
     }
 }
@@ -333,7 +375,7 @@ pub(crate) struct Fiber {
     completion: RefCell<Option<Receiver>>,
 }
 impl Fiber {
-    fn info(&self) -> hooks::FiberInfo {
+    pub(crate) fn info(&self) -> hooks::FiberInfo {
         hooks::FiberInfo {
             id: self.owner.id.clone(),
             name: self.owner.name.clone(),
@@ -360,6 +402,15 @@ impl Fiber {
                 move || Ok::<_, BoxError>(tail),
             )
             .map_err(|error| CleanupFailure::returned(Box::new(error)))?;
+        if transformed.inner.as_ref().type_id() != self.definition.source_contract {
+            return Err(CleanupFailure::returned(Box::new(
+                ServiceError::TypeMismatch {
+                    name: "plugin source config".into(),
+                    expected: self.definition.source_type,
+                    actual: transformed.actual,
+                },
+            )));
+        }
         (self.definition.validate)(&*transformed.inner)
     }
     fn request_restart(
@@ -592,23 +643,30 @@ impl Fiber {
     }
 
     async fn drain(&self, state: &Rc<State>) -> Result<(), LifecycleError> {
-        let host = state.admit()?;
-        let existing = self.owner.draining.borrow().as_ref().cloned();
-        let completion = match existing {
-            Some(receiver) => crate::Completion::waiting(receiver),
-            None => {
-                let callbacks = std::mem::take(&mut *self.owner.cleanups.borrow_mut())
-                    .into_values()
-                    .rev()
-                    .collect();
-                state.start(&host, self.owner.clone(), callbacks, true)
+        loop {
+            let host = state.admit()?;
+            let existing = self.owner.draining.borrow().as_ref().cloned();
+            let joined = existing.is_some();
+            let completion = match existing {
+                Some(receiver) => crate::Completion::waiting(receiver),
+                None => {
+                    let callbacks = std::mem::take(&mut *self.owner.cleanups.borrow_mut())
+                        .into_values()
+                        .rev()
+                        .collect();
+                    state.start(&host, self.owner.clone(), callbacks, true)
+                }
+            };
+            drop(host);
+            completion.await.map_err(|error| match error {
+                crate::CompletionError::HostStopped => LifecycleError::HostStopped,
+                _ => LifecycleError::DriverPanicked,
+            })?;
+            // A prior journal snapshot does not own effects admitted after it.
+            if !joined {
+                break;
             }
-        };
-        drop(host);
-        completion.await.map_err(|error| match error {
-            crate::CompletionError::HostStopped => LifecycleError::HostStopped,
-            _ => LifecycleError::DriverPanicked,
-        })?;
+        }
         self.owner.release_dependencies();
         Ok(())
     }
@@ -748,6 +806,15 @@ impl<C: 'static> FiberHandle<C> {
     /// Commit a typed source config and converge toward its latest load.
     /// Invalid loaded candidates fail synchronously without changing source or
     /// invoking update middleware. Pending instances defer validation.
+    ///
+    /// ```compile_fail
+    /// use cordis_core::{Plugin, Runtime};
+    /// use std::convert::Infallible;
+    /// let runtime = Runtime::new();
+    /// let plugin = Plugin::new("typed", |_, _: u32| async { Ok::<_, Infallible>(()) });
+    /// let fiber = runtime.context().plugin(&plugin, 1).unwrap();
+    /// let _ = fiber.update(String::from("wrong source"));
+    /// ```
     pub fn update(&self, config: C) -> Result<LifecycleTask, LifecycleError> {
         self.update_with(config, UpdateOptions::default())
     }
@@ -909,6 +976,13 @@ impl<C: 'static> FiberHandle<C> {
     }
 }
 
+fn initialization_failure(error: crate::SetupError) -> CleanupFailure {
+    match error {
+        crate::SetupError::Callback(failure) => failure,
+        error => CleanupFailure::returned(Box::new(error)),
+    }
+}
+
 fn restart_failure(error: &crate::EventError) -> Option<LifecycleError> {
     let crate::EventError::Callbacks { failures, .. } = error else {
         return None;
@@ -1012,6 +1086,21 @@ impl Registry {
 }
 
 impl Context {
+    /// Explicit method-injection/decorator equivalent. The child owns method
+    /// effects and unloads/reloads with dependencies; target capture is explicit.
+    pub fn inject_method<T: 'static, F, Fut, E>(
+        &self,
+        dependencies: impl IntoIterator<Item = Dependency>,
+        target: Rc<T>,
+        method: F,
+    ) -> Result<FiberHandle<()>, LifecycleError>
+    where
+        F: Fn(Rc<T>, Context) -> Fut + 'static,
+        Fut: Future<Output = Result<(), E>> + 'static,
+        E: Into<BoxError> + 'static,
+    {
+        self.inject(dependencies, move |context| method(target.clone(), context))
+    }
     /// Register resolved-config update middleware on this Fiber. Omitting next
     /// accepts the new source without restarting. Global middleware can use
     /// hooks::update with ordinary global listener options.

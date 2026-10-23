@@ -8,10 +8,11 @@ must be expanded to every upstream variant when ported; line numbers locate
 the declaration, not an assertion of coverage.
 
 Check an item only when an integrated production Rust test proves its behavior,
-or link an explicit Rust representation restriction instead. M2-M5 mark
+or link an explicit Rust representation restriction instead. M2-M6 mark
 integrated root/lifecycle evidence; the [M2 mapping](m2.md#evidence-and-remaining-case-coverage)
 and [M3 mapping](m3.md#evidence-and-remaining-source-coverage) plus
-[M4 mapping](m4.md#evidence-and-remaining-cases) and [M5 mapping](m5.md#evidence) record API
+[M4 mapping](m4.md#evidence-and-remaining-cases), [M5 mapping](m5.md#evidence),
+and [M6 audit](m6.md#source-map-audit) record API
 restrictions and remaining gaps. A passing disposable M0
 model alone is still not production parity. The [M0 results](m0.md) map its
 selected experiments to source-backed expectations. File-level
@@ -22,18 +23,18 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/associate.spec.ts); production owner: **M5**.
 
-- [ ] `service injection` (line 5)
-- [ ] `property injection` (line 30)
-- [ ] `associated type - service injection` (line 58)
-- [ ] `associated type - accessor injection` (line 114)
-- [ ] `associated access follows the service fiber` (line 176)
-- [ ] `inspect` (line 235)
+- [x] `service injection` (line 5; typed associated keys, removal while base remains)
+- [x] `property injection` (line 30; Rust fields, named slots and explicit receiver/accessor adapters)
+- [x] `associated type - service injection` (line 58; associated_key on explicit mapped holders)
+- [x] `associated type - accessor injection` (line 114; typed Session receiver and mixin authority)
+- [x] `associated access follows the service fiber` (line 176)
+- [x] `inspect` (line 235; ordinary Rust Debug/type arguments, no Proxy/class-toString promise)
 
 ## decorator.spec.ts
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/decorator.spec.ts); production owner: **M6**.
 
-- [ ] `@Inject on class method` (line 7)
+- [x] `@Inject on class method` (line 7; inject_method Rc/Context adapter, not native decorator syntax)
 
 ## dispose.spec.ts
 
@@ -81,9 +82,9 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/fiber.spec.ts); production owner: **M3/M5**.
 
-- [ ] `inertia lock 1` (line 7)
-- [ ] `inertia lock 2` (line 27)
-- [ ] `inertia lock 3` (line 49)
+- [x] `inertia lock 1` (line 7; channel-gated causal states, not wall-clock timer matching)
+- [x] `inertia lock 2` (line 27; replacement before old setup completes)
+- [x] `inertia lock 3` (line 49; Active provider disposal converges consumer to Pending)
 - [x] `plugin error` (line 71)
 - [x] `failed fiber does not re-enter on dependency refresh` (line 93)
 - [x] `update recovers a failed fiber` (line 108)
@@ -95,7 +96,7 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 - [x] `settles a pending fiber to DISPOSED on dispose` (line 204)
 - [x] `settles a failed fiber to DISPOSED on dispose` (line 231)
 - [x] `keeps the active dispose sequence stable` (line 264)
-- [ ] `update config on wrapped fiber` (line 292)
+- [x] `update config on wrapped fiber` (line 292; shared typed FiberHandle clone representation)
 - [x] `restart wrapped fiber` (line 312)
 - [x] `update config while injected service reloads` (line 326)
 - [x] `fail on first load` (line 384)
@@ -142,13 +143,13 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 - [x] `disposes the exporter that registered the disposer` (line 37)
 - [x] `uses fiber name when called from outside any service` (line 55)
 - [x] `honours explicit name argument` (line 61)
-- [ ] `honours intercept name` (line 67)
-- [ ] `uses service name when called from inside a Service method (regression)` (line 73)
-- [ ] `still lets outer caller intercept override the service-derived name` (line 91)
-- [ ] `uses the innermost service name and restores the outer service` (line 109)
-- [ ] `uses service name when called from inside [Service.init] (unchanged behaviour)` (line 140)
-- [ ] `logs an error whose errors array is empty` (line 156)
-- [ ] `flattens an aggregate error into its members` (line 165)
+- [x] `honours intercept name` (line 67)
+- [x] `uses service name when called from inside a Service method (regression)` (line 73; explicit bound adapter)
+- [x] `still lets outer caller intercept override the service-derived name` (line 91)
+- [x] `uses the innermost service name and restores the outer service` (line 109)
+- [x] `uses service name when called from inside [Service.init] (unchanged behaviour)` (line 140; initialized factory)
+- [x] `logs an error whose errors array is empty` (line 156; explicit ErrorValue metadata)
+- [x] `flattens an aggregate error into its members` (line 165; exact source identity retained)
 
 ## plugin.spec.ts
 
@@ -163,15 +164,15 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 - [x] `nested plugins` (line 86)
 - [x] `compare snapshot` (line 123)
 - [x] `root dispose` (line 145)
-- [ ] `Service.init` (line 165)
+- [x] `Service.init` (line 165; Plugin::initialized, not constructor/method discovery)
 
 ## reflect.spec.ts
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/reflect.spec.ts); production owner: **M4**.
 
-- [ ] `Context.is()` (line 6)
+- [x] `Context.is()` (line 6; concrete Context/Any type checks; JS subclass branding explicitly unsupported)
 - [x] `access check` (line 12; explicit typed access/static Context representation, see M4)
-- [ ] `service injection` (line 30)
+- [x] `service injection` (line 30; typed services/accessors/metadata and direct-slot distinction)
 - [x] `service inject leak` (line 57)
 
 ## service-dispose.spec.ts
@@ -200,20 +201,19 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/service.spec.ts); production owner: **M4**.
 
-- [ ] `pending inject` (line 7)
-- [ ] `traceable effect (with inject)` (line 36)
-- [ ] `traceable effect (without inject)` (line 76)
-- [ ] `compare snapshot` (line 109)
+- [x] `pending inject` (line 7; explicit initialized factory gates availability)
+- [x] `traceable effect (with inject)` (line 36; explicit bound Context)
+- [x] `traceable effect (without inject)` (line 76; inherited root provision authority)
+- [x] `compare snapshot` (line 109; repeated initialized provider/child/listener baselines)
 - [x] `multiple injects` (line 128; explicit typed Plugin/inject equivalents)
 - [x] `dispose dependents before provider` (line 191)
 - [x] `dispose dependents before provider restarts` (line 203)
-- [ ] `dispose dependents before isolated provider` (line 217)
+- [x] `dispose dependents before isolated provider` (line 217)
 
-M4 covers delayed activation through explicit async apply, but `pending inject`
-and the Service.init-dependent snapshot case remain unchecked as complete source
-protocols. M5 now covers both realm-dependent disposal declarations, explicit
-bound tracing/mixins, and typed internal/status sequences. Remaining unchecked
-cases are reviewed individually under M6 rather than inferred from module names.
+M6 adds explicit initialized-factory/method adapters and repeated lifecycle
+baseline checks. These checkmarks account for the declared cases at the Rust
+contract level; they do not claim automatic Service.init/decorator discovery
+or transparent proxy behavior. See the M6 restriction/deviation audit.
 
 ## shadow.spec.ts
 
@@ -223,7 +223,7 @@ cases are reviewed individually under M6 rather than inferred from module names.
 - [x] `applies the service inject when entered from root` (line 60)
 - [x] `resolves dependencies through a captured shadow` (line 93; explicit map/rebind)
 - [x] `resolves same-name own provisions at their definition sites` (line 157)
-- [ ] `keeps unchecked access for services provided on the root ctx` (line 195)
+- [x] `keeps unchecked access for services provided on the root ctx` (line 195)
 - [x] `exposes the caller without preserving shadow for noShadow services` (line 226; call_unshadowed)
 - [x] `exposes the caller to callable services` (line 271; caller is explicit on BoundService)
 - [x] `strips service shadow before creating plugins` (line 313)
@@ -248,5 +248,17 @@ cases are reviewed individually under M6 rather than inferred from module names.
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/events.types.ts);
 production owner: **M6**. This is a type-checking suite, not a named runtime spec.
 
-- [ ] Port its event argument, listener, result, and dispatch type constraints
-  into Rust compile-pass/compile-fail evidence after the public API is selected.
+- [x] Event argument/listener/result/dispatch contracts have Rustdoc compile-pass/
+  compile-fail evidence, including the registered-symbol cases. Dynamic symbols
+  use explicitly typed heterogeneous Value lists rather than unchecked JS args.
+
+## M6 interpretation
+
+All 144 named declarations (plus the separate event-type inventory) have been
+accounted for with integrated tests or explicit Rust representation restrictions.
+Parameterized declarations are exercised through their corresponding gated/
+disposal/config variants. See [M6](m6.md) for the per-area evidence and boundaries.
+This inventory is not a claim that arbitrary JavaScript reflection, subclass
+branding, implicit method tracing, or every possible internal-hook mutation is
+supported. Restricted mechanisms remain restricted even when their named
+source-case representation is checked.

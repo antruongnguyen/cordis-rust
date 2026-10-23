@@ -57,10 +57,17 @@ impl State {
         eprintln!("cordis: {text}");
         self.failures.borrow_mut().push(failure.clone());
         let result = self.logger.write(
-            "cordis".into(),
+            if owner.is_root() {
+                "cordis".into()
+            } else {
+                crate::logger::normalize_name(&owner.name)
+            },
             crate::Level::Error,
             text,
-            owner.id.clone(),
+            crate::logger::WeakFiber {
+                id: owner.id.clone(),
+                owner: owner.weak.clone(),
+            },
             Some(failure),
             crate::Level::Info,
         );
@@ -95,8 +102,11 @@ impl State {
         let (sender, receiver) = watch::channel(None);
         if root_drain {
             *journal.draining.borrow_mut() = Some(receiver.clone());
+            let available = journal.services_active();
             journal.services_paused.set(true);
-            crate::service::notify(self, host, &journal);
+            if available {
+                crate::service::notify(self, host, &journal);
+            }
         }
         let attempted = callbacks.len();
         let (callbacks, started) = if root_drain {
@@ -180,7 +190,9 @@ impl State {
                 journal.draining.borrow_mut().take();
                 journal.services_paused.set(false);
                 if let Ok(host) = state.admit() {
-                    crate::service::notify(&state, &host, &journal);
+                    if journal.services_active() {
+                        crate::service::notify(&state, &host, &journal);
+                    }
                 } else {
                     eprintln!("cordis: cleanup supervisor lost its host admission");
                     sender.send_replace(Some(Err(CompletionError::DriverPanicked)));

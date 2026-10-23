@@ -10,6 +10,13 @@ use std::{
 };
 
 /// Typed accessor identity, including the associated receiver type.
+///
+/// ```compile_fail
+/// use cordis_core::{AccessorKey, Runtime};
+/// use std::{cell::Cell, rc::Rc};
+/// let key = AccessorKey::<Cell<u32>, u32>::new("session.value");
+/// let _ = Runtime::new().context().read_accessor(&key, Rc::new(String::new()));
+/// ```
 pub struct AccessorKey<R, T> {
     name: String,
     marker: PhantomData<fn(R) -> T>,

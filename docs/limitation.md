@@ -26,14 +26,17 @@ not have. These require real design, not translation:
   Rust needs a typed strategy (type-erased storage, downcasting, or a
   trait-object registry) to recover both dynamism and type safety.
 
-## M5 current boundary
+## M6 current boundary
 
-The unpublished core includes [M5 scoped reflection/config updates](m5.md),
+The unpublished core includes [M6 logging/injection/type/example acceptance](m6.md),
+[M5 scoped reflection/config updates](m5.md),
 [M4 typed services/injection](m4.md),
 [M3 base plugin lifecycle/Registry](m3.md), and Fiber-scoped
 [effects, typed events, and diagnostics](m2.md) on the [M1 host](m1.md).
-Logging completion, injection/decorator adapters, compile-time API acceptance,
-the end-to-end example and the final parity/deviation review remain M6.
+The final audit accounts for all pinned declarations through integrated tests
+or explicit Rust representations. This is not unrestricted TS compatibility;
+the [M6 restriction/deviation list](m6.md#remaining-restrictions-and-safety-deviations)
+is part of the supported contract.
 
 - Services use explicit `ServiceKey<T>` access, not JS properties. M5 supports
   isolated slots with retained boundary history and explicit `BoundService`
@@ -47,7 +50,8 @@ the end-to-end example and the final parity/deviation review remain M6.
 - Injection declares required names/types, typed config metadata and synchronous
   provider checks. Intercepts merge through an explicit service-specific callback.
   Automatic Service.init/constructor discovery is not implemented; explicit
-  plugin apply futures provide the initialization barrier. `set` preserves publication
+  initialized factories provide the initialization barrier and method-injection
+  adapters replace decorators. `set` preserves publication
   identity and does not notify dependencies or recheck readiness.
 
 - Plugin declarations are immutable and reusable with explicit allocation
@@ -70,10 +74,11 @@ the end-to-end example and the final parity/deviation review remain M6.
 - Listener responder and around callback roles are explicit. Bail is sync-only;
   sync and async waterfall have separate owned continuation types. Wrong mode
   or live name/type contracts return errors rather than silently skipping hooks.
-- Diagnostic logging has its bounded buffer/exporters, raw Fiber names, and
-  owner IDs. Traced service names, plugin-name normalization, intercept defaults,
-  JS printf/color formatting, and
-  cause/aggregate flattening remain M5/M6.
+- Diagnostic logging has its bounded buffer/exporters, traced normalized names,
+  typed intercepts, owner IDs and expiring weak lifecycle metadata. Explicit
+  ErrorValue trees represent cause/aggregate metadata. Rust formatting/exporter
+  callbacks replace dynamic JS formatter dictionaries and Error properties.
+  Per-line formatting preserves Unicode scalars rather than lone surrogates.
 - Context is non-owning: after Runtime drop, metadata/IDs are readable but
   operations return `RuntimeDropped`. Arbitrary user-created Rc cycles are
   not collected. Retained Fiber handles can retain source/metadata and pending
@@ -141,11 +146,14 @@ integrated framework or resolve every behavioral gap.
   dependencies resolve. M5 adds typed updates/recovery and structured issue paths.
   Automatic schema discovery remains unsupported; serde is not an
   automatic core dependency.
-- **Logging representation.** Default buffering, exporter lifetimes, caller
-  naming, and error aggregation are core behavior. JS formatters, callable
-  logger syntax, and weak Fiber metadata still need explicit Rust equivalents.
-- **Error model.** How faithfully to reproduce Cordis's error enhancement and
-  stack-trace handling in Rust is open.
+- **Logging representation.** Use Rust Display/Debug, ErrorValue metadata and
+  exporter callbacks. Arbitrary Error::source graphs require explicit owned
+  cause adaptation; `.error(Display)` does not inspect dynamic properties.
+  Callable logger syntax and JS printf/JSON argument semantics are not promised.
+- **Error model.** Original Rust error sources and typed validation paths are
+  retained. JS stack-string rewriting and hostile destructor recovery are not
+  implemented. Typed config middleware cannot replace the validator's Rust
+  contract, and virtual get-only values have no publication identity for bind.
 
 ## Scope limitations (current)
 
@@ -158,7 +166,7 @@ integrated framework or resolve every behavioral gap.
 This document should shrink as tensions are resolved (move resolved items into
 `docs/decision.md`) and grow as new ones surface.
 
-M5 safety deviations: observer hook failures are diagnosed without interrupting
+Core safety deviations: observer hook failures are diagnosed without interrupting
 retained-provider cleanup; shared-slot aliases also receive dependency refresh.
 These strengthen error/teardown safety rather than claiming identical upstream
 observer-failure or name-only alias notification behavior.

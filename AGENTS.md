@@ -7,14 +7,15 @@ Instructions for agents (and humans) working in this repository.
 `cordis-rust` is a from-scratch Rust reimplementation of the
 [Cordis](https://github.com/cordiverse/cordis) meta-framework.
 
-**Status: M5 explicit scoped reflection and configuration updates implemented.**
+**Status: M0-M6 Rust core delivery and acceptance implemented.**
 The root Rust 2024 workspace contains only the unpublished `crates/cordis-core`
 (Rust 1.85 minimum). Use `cargo test --workspace`.
+Acceptance, logging, examples and compatibility restrictions are in `docs/m6.md`.
 Isolation/bound-call/update contracts are in `docs/m5.md`;
 publication/access/dependency-retention contracts are in `docs/m4.md`;
 Plugin/Registry/scoped-resource contracts are in `docs/m3.md`, with effects,
-events, and diagnostics in `docs/m2.md`. Complete logging, injection adapters,
-and the final parity/deviation review remain M6. The isolated `spikes/m0`
+events, and diagnostics in `docs/m2.md`. This is an explicit Rust API, not
+transparent JavaScript Proxy/decorator compatibility. The isolated `spikes/m0`
 package remains research evidence; run it with its own `--manifest-path`.
 
 ## Source of truth

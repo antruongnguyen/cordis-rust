@@ -214,9 +214,13 @@ async fn intercepts_merge_nearest_injection_then_outer_to_inner_and_own_provisio
             root.provide(&key, ()).unwrap();
             let consumer = root
                 .intercept(&key, vec!["outer"])
-                .inject([key.required().with_config(vec!["inject"])], |_| async {
-                    Ok::<_, Infallible>(())
-                })
+                .inject(
+                    [
+                        key.required().with_config(vec!["overridden"]),
+                        key.required().with_config(vec!["inject"]),
+                    ],
+                    |_| async { Ok::<_, Infallible>(()) },
+                )
                 .unwrap();
             consumer.ready().unwrap().await.unwrap();
             let ctx = consumer.context().intercept(&key, vec!["inner"]);

@@ -53,3 +53,19 @@ impl fmt::Debug for FiberId {
         f.write_str("FiberId(..)")
     }
 }
+
+/// One service publication occurrence, independent of its name or value.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct PublicationId(Identity);
+
+impl PublicationId {
+    pub(crate) fn new() -> Self {
+        Self(Identity(Rc::new(())))
+    }
+}
+
+impl fmt::Debug for PublicationId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("PublicationId(..)")
+    }
+}

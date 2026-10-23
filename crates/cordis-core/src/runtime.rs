@@ -26,6 +26,7 @@ pub(crate) struct State {
     pub(crate) events: crate::events::EventStore,
     pub(crate) logger: crate::logger::LogStore,
     pub(crate) registry: crate::plugin::RegistryStore,
+    pub(crate) services: crate::service::ServiceStore,
 }
 
 impl State {
@@ -90,6 +91,8 @@ impl State {
         let (sender, receiver) = watch::channel(None);
         if root_drain {
             *journal.draining.borrow_mut() = Some(receiver.clone());
+            journal.services_paused.set(true);
+            crate::service::notify(self, host, &journal);
         }
         let attempted = callbacks.len();
         let (callbacks, started) = if root_drain {
@@ -128,6 +131,9 @@ impl State {
         }
         let worker_owner = journal.clone();
         let task = self.spawn(host, async move {
+            if root_drain {
+                crate::service::wait_dependents(&worker_owner).await;
+            }
             let started = started.unwrap_or_else(|| {
                 callbacks
                     .into_iter()
@@ -149,7 +155,7 @@ impl State {
             }
         });
         let state = self.clone();
-        host.spawn_local(async move {
+        self.spawn(host, async move {
             let outcome = match task.await {
                 Ok(report) => {
                     for failure in report.failures() {
@@ -168,6 +174,14 @@ impl State {
             };
             if root_drain {
                 journal.draining.borrow_mut().take();
+                journal.services_paused.set(false);
+                if let Ok(host) = state.admit() {
+                    crate::service::notify(&state, &host, &journal);
+                } else {
+                    eprintln!("cordis: cleanup supervisor lost its host admission");
+                    sender.send_replace(Some(Err(CompletionError::DriverPanicked)));
+                    return;
+                }
             }
             sender.send_replace(Some(outcome));
         });
@@ -209,6 +223,7 @@ impl Runtime {
             events: crate::events::EventStore::default(),
             logger: crate::logger::LogStore::default(),
             registry: crate::plugin::RegistryStore::default(),
+            services: crate::service::ServiceStore::default(),
         });
         Self {
             state,

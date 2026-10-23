@@ -3,10 +3,11 @@
 A Rust reimplementation of [Cordis](https://github.com/cordiverse/cordis) — a
 meta-framework for spatiotemporal composability.
 
-> **Status: M3 base lifecycle complete.** The unpublished `cordis-core` has local
+> **Status: M4 global-slot services implemented.** The unpublished `cordis-core` has local
 > hosting, typed plugins/Registry grouping, scoped effects and diagnostics,
-> typed events, validation, restart, and parent-owned disposal.
-> Service injection/convergence, config updates, and full TS parity are not implemented.
+> typed events, validation, restart, parent-owned disposal, typed service
+> publication/lookup, and dependency-driven injection convergence.
+> Isolation/intercepts/tracing, config updates, and full TS parity remain planned.
 > The concept map below remains the framework target, not a shipped feature list.
 
 ## Why
@@ -59,7 +60,7 @@ A Cargo workspace mirroring the original `cordis` packages, built up in stages:
 
 ```
 crates/
-  cordis-core      # Plugins/Fibers/Context/effects/events/diagnostics; services planned
+  cordis-core      # Plugins/Fibers/Context/services/injection/effects/events/diagnostics
   cordis-loader    # (later) plugin loading
   cordis-timer     # (later) timer service
   cordis-logger    # (later) console logger
@@ -81,7 +82,8 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 ```
 
-See [M3 lifecycle APIs](docs/m3.md), [M2 APIs](docs/m2.md), and the examples in the
+See [M4 service APIs](docs/m4.md), [M3 lifecycle APIs](docs/m3.md),
+[M2 APIs](docs/m2.md), and the examples in the
 [`cordis-core` crate docs](crates/cordis-core/src/lib.rs). The runtime must be
 explicitly driven from Tokio; Context values do not keep their host alive.
 CI covers Rust 1.85.0 and stable, including the independent M0 experiments.
@@ -98,6 +100,7 @@ See [M0 results](docs/m0.md) for evidence, selected design directions, and limit
 
 ## Documentation
 
+- [`docs/m4.md`](docs/m4.md) — typed services, checked/direct lookup, injection convergence, and exact-provider retention.
 - [`docs/m3.md`](docs/m3.md) — typed plugins, Registry, scoped resources, and base lifecycle.
 - [`docs/m1.md`](docs/m1.md) — supported foundation APIs, ownership, and limits.
 - [`docs/m2.md`](docs/m2.md) — effect/event/diagnostic APIs and source-case coverage.

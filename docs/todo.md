@@ -40,12 +40,15 @@ and behavioral tests, not just public type declarations.
   child/listener/exporter cleanup, and reusable-root disposal; see [m3.md](m3.md).
   Dependency-driven Pending is M4; config updates/recovery and internal status/
   update hook protocols remain M5. Complete upstream suite parity is not claimed.
-- [ ] M4: Reflect/Service typed publication and lookup, injection resolution,
+- [x] M4 (global slots): Reflect/Service typed publication and lookup, injection resolution,
   Pending/Active convergence, committed snapshots, and exact-provider retention
   through consumer cleanup (including consumers removed from the Registry).
+  See [m4.md](m4.md). Isolation-dependent service cases and complete reflection/
+  internal hook protocols remain assigned to M5/M6, not claimed as suite parity.
 - [ ] M5: Isolation boundaries, intercepts, definition/use-site tracing,
   explicit accessor/mixin/associated/callable equivalents, internal hooks,
-  update middleware, and concurrent latest-config convergence.
+  update middleware, concurrent latest-config convergence, and the remaining
+  isolation-dependent service-disposal cases.
 - [ ] M6: Complete core Logger behavior, decorator-injection equivalents,
   compile-time API checks, an end-to-end example, and a parity/deviation review.
 

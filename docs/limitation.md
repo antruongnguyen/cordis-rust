@@ -26,20 +26,35 @@ not have. These require real design, not translation:
   Rust needs a typed strategy (type-erased storage, downcasting, or a
   trait-object registry) to recover both dynamism and type safety.
 
-## M3 current boundary
+## M4 current boundary
 
-The unpublished core includes [M3 base plugin lifecycle/Registry](m3.md) and
-Fiber-scoped [effects, typed events, and diagnostics](m2.md) on the [M1 host](m1.md).
-There is no service lookup/injection/convergence or isolation/intercept API,
-configuration update/recovery, or complete internal lifecycle/update hook protocol.
+The unpublished core includes [M4 typed global-slot services/injection](m4.md),
+[M3 base plugin lifecycle/Registry](m3.md), and Fiber-scoped
+[effects, typed events, and diagnostics](m2.md) on the [M1 host](m1.md).
+There is no isolation/intercept/use-site tracing API, configuration update/recovery,
+or complete internal lifecycle/service/update hook protocol.
+
+- Services use global string slots and explicit `ServiceKey<T>` access, not
+  JS properties or transparent bound objects. Checked access respects captured
+  definition Contexts and Fiber ancestry; full bound definition/use-site calls
+  and isolation-boundary history remain M5. The two realm-dependent declarations
+  in `service-dispose.spec.ts` remain unchecked.
+- Reads return `Rc<T>` snapshots of a publication's current value. Holding a
+  returned value is not a lease on the provider's effects/resources; only
+  committed injection retains those through cleanup. Existing `Rc<T>` reads
+  do not change when set replaces the stored value.
+- Injection currently declares required names/types, with synchronous provider
+  readiness checks. Injected intercept/config metadata and automatic
+  Service.init/constructor discovery are not implemented. Explicit plugin apply
+  futures provide the initialization barrier. `set` preserves publication
+  identity and does not notify dependencies or recheck readiness.
 
 - Plugin declarations are immutable and reusable with explicit allocation
   identity; JS function/object/constructor behavior is adapted to typed callbacks.
   Apply registers effects rather than implicitly interpreting arbitrary return
-  shapes. Dynamic callback metadata mutation and automatic Service.init are
-  not implemented.
-- Pending is an initial vocabulary position; dependency-driven Pending/Active
-  transitions need M4. State snapshots are not internal/status event evidence.
+  shapes. Dynamic callback metadata mutation is not implemented.
+- Missing dependencies now produce Pending without validation; exact publication
+  replacements drive unload/reload. State snapshots are not internal/status event evidence.
   Failed Fibers stay resident until disposal; config-update recovery needs M5.
 - Restart/dispose self-waits and owning-ancestor waits are refused from directly
   attributed callbacks. User-spawned task graphs do not gain that attribution
@@ -62,7 +77,7 @@ configuration update/recovery, or complete internal lifecycle/update hook protoc
   operations return `RuntimeDropped`. Arbitrary user-created Rc cycles are
   not collected. Retained Fiber handles can retain source/metadata and pending
   cleanup captures until dropped; host destruction does not run async cleanup.
-  Full definition-site ancestry is still M5 work.
+  Full bound definition/use-site tracing is still M5 work.
 - Only its explicit run scope admits work. Missing/wrong hosts, nested or
   concurrent driving, and hosting inside spawned tasks are refused. Pausing
   a run pauses local tasks; host destruction is cancellation, not cleanup.
@@ -100,15 +115,15 @@ integrated framework or resolve every behavioral gap.
   its middleware chain returns (including promises). Rust futures are lazy,
   so returning or dropping an unpolled future does not reproduce JS start
   behavior. M3 integrates base non-root lifecycle and per-Fiber ownership;
-  complete internal event/config behavior and service convergence remain future
-  work. See design gates A and C in the
+  complete internal event/config behavior and isolated/traced service views
+  remain future work. See design gates A and C in the
   [implementation plan](implementation-plan.md).
 - **Ownership and teardown.** Rust Drop cannot await cleanup. M3 implements
   parent-owned children and reusable-root disposal with weak backreferences.
-  M4 must keep exact provider bindings usable through dependent cleanup, even
-  after consumers leave the Registry. Top-level
-  cleanup is concurrent upstream; a universal sequential LIFO drain is not
-  equivalent. These are requirements, not accepted omissions.
+  M4 keeps exact provider bindings usable through dependent cleanup, even
+  after consumers leave the Registry, and preserves unrelated concurrent
+  cleanup. Remaining isolation-dependent retention cases need M5; passing the
+  global-slot slice does not establish full service-disposal suite parity.
 - **Definition site versus use site.** Typed shared service pointers alone
   cannot retain upstream shadow/caller tracing. Dependency authority,
   use-site intercept/effect behavior, nested service calls, and explicit
@@ -119,8 +134,9 @@ integrated framework or resolve every behavioral gap.
   validation (`ValidationError`) and rejects asynchronous validators. Source
   and resolved config differ, validation is deferred while Pending, and
   invalid updates to loaded Fibers preserve the running configuration. M3 has
-  synchronous typed validation/source separation but no update or dependency
-  deferral API yet. Schema integration remains undecided; serde is not an
+  synchronous typed validation/source separation, and M4 defers it until
+  dependencies resolve. There is no update API yet.
+  Schema integration remains undecided; serde is not an
   automatic core dependency.
 - **Logging representation.** Default buffering, exporter lifetimes, caller
   naming, and error aggregation are core behavior. JS formatters, callable

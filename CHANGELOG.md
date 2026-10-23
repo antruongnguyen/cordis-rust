@@ -8,6 +8,15 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
+- M4 typed named service publication, owned set/withdrawal, checked/direct lookup,
+  explicit duplicate-provider/type/access errors, and synchronous readiness checks.
+- Per-Fiber injection declarations, dependency-driven Pending/Active convergence,
+  exact committed publication snapshots, and replacement/restart coalescing.
+- Provider-resource retention through removed-consumer, transitive, child, setup,
+  rollback, and final-event cleanup, without blocking unrelated owners or effects.
+- M4 contracts and source-case evidence; 28 new deterministic integration tests
+  bring the production suite to 100 tests, with ten Rustdoc checks.
+
 - M3 typed reusable plugins and Registry grouping, per-load synchronous validation
   with retained source/resolved types, and supervised non-root Fiber lifecycle.
 - Fiber-owned effects/listeners/exporters, parent-owned child disposal, restart
@@ -45,3 +54,7 @@ This project does not yet follow semantic versioning — the API is unstable.
 - Rust edition 2024 baseline for the planned Cargo workspace.
 - Initial project documentation: `AGENTS.md`, `README.md`, and
   `docs/{todo,decision,limitation}.md`.
+
+### Fixed
+- Lifecycle drains no longer retain the local executor across dependent cleanup
+  waits, so host destruction cancels those waits rather than retaining the host.

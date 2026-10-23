@@ -7,11 +7,13 @@ Instructions for agents (and humans) working in this repository.
 `cordis-rust` is a from-scratch Rust reimplementation of the
 [Cordis](https://github.com/cordiverse/cordis) meta-framework.
 
-**Status: M3 base lifecycle complete.** The root Rust 2024 workspace contains only the
-unpublished `crates/cordis-core` (Rust 1.85 minimum). Use `cargo test --workspace`.
+**Status: M4 global-slot services and injection convergence implemented.**
+The root Rust 2024 workspace contains only the unpublished `crates/cordis-core`
+(Rust 1.85 minimum). Use `cargo test --workspace`.
+Publication/access/dependency-retention contracts are in `docs/m4.md`;
 Plugin/Registry/scoped-resource contracts are in `docs/m3.md`, with effects,
-events, and diagnostics in `docs/m2.md`. Service injection/convergence and config
-updates are not implemented. The isolated `spikes/m0`
+events, and diagnostics in `docs/m2.md`. Isolation/intercepts/tracing, config
+updates, and complete internal hook protocols remain M5/M6. The isolated `spikes/m0`
 package remains research evidence; run it with its own `--manifest-path`.
 
 ## Source of truth

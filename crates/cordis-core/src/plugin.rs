@@ -1,6 +1,6 @@
 use crate::{
-    AdmissionError, BoxError, CleanupFailure, Context, Effect, FiberId, LocalFuture, effect,
-    owner::Owner, runtime::State,
+    AdmissionError, BoxError, CleanupFailure, Context, Dependency, Effect, FiberId, LocalFuture,
+    ServiceError, effect, owner::Owner, runtime::State, service,
 };
 use std::{
     any::Any,
@@ -15,12 +15,12 @@ use std::{
     rc::{Rc, Weak},
     task::{Context as TaskContext, Poll},
 };
-use tokio::sync::watch;
+use tokio::{sync::watch, task::LocalSet};
 
-/// A Fiber's observable lifecycle state. Pending dependency resolution is M4.
+/// A Fiber's observable lifecycle state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FiberState {
-    /// Waiting to begin, or (once services exist) waiting for dependencies.
+    /// Waiting for required service publications to become available.
     Pending,
     /// Validating configuration or applying the plugin.
     Loading,
@@ -85,12 +85,14 @@ struct Definition {
 /// ```
 pub struct Plugin<C, R = C> {
     definition: Rc<Definition>,
+    dependencies: Vec<Dependency>,
     marker: PhantomData<fn(C) -> R>,
 }
 impl<C, R> Clone for Plugin<C, R> {
     fn clone(&self) -> Self {
         Self {
             definition: self.definition.clone(),
+            dependencies: self.dependencies.clone(),
             marker: PhantomData,
         }
     }
@@ -151,11 +153,20 @@ impl<C: 'static, R: 'static> Plugin<C, R> {
         };
         Self {
             definition: Rc::new(definition),
+            dependencies: Vec::new(),
             marker: PhantomData,
         }
     }
     fn key(&self) -> usize {
         Rc::as_ptr(&self.definition) as usize
+    }
+    /// Declare required services for instances loaded through this declaration
+    /// view. Clones keep their grouping identity; each Fiber captures its own list.
+    /// Injection configuration/intercepts are a later milestone.
+    #[must_use]
+    pub fn injecting(mut self, dependencies: impl IntoIterator<Item = Dependency>) -> Self {
+        self.dependencies = dependencies.into_iter().collect();
+        self
     }
 }
 
@@ -236,7 +247,49 @@ struct Group {
 #[derive(Default)]
 pub(crate) struct RegistryStore(RefCell<HashMap<usize, Rc<Group>>>);
 
-struct Fiber {
+impl RegistryStore {
+    pub(crate) fn notify(&self, state: &Rc<State>, host: &LocalSet, names: &[String]) {
+        let fibers: Vec<_> = self
+            .0
+            .borrow()
+            .values()
+            .flat_map(|group| group.fibers.borrow().values().cloned().collect::<Vec<_>>())
+            .filter(|fiber| {
+                fiber
+                    .owner
+                    .dependencies
+                    .iter()
+                    .any(|dependency| names.contains(&dependency.name))
+            })
+            .collect();
+        for fiber in fibers {
+            fiber.check_services(state, host, names);
+        }
+    }
+}
+
+struct Target {
+    revision: u64,
+    bindings: Result<Option<service::Bindings>, ServiceError>,
+}
+impl Target {
+    fn same(&self, other: &Self) -> bool {
+        match (&self.bindings, &other.bindings) {
+            (Ok(None), Ok(None)) => true,
+            (Ok(Some(left)), Ok(Some(right))) => {
+                self.revision == other.revision
+                    && left.len() == right.len()
+                    && left
+                        .iter()
+                        .zip(right)
+                        .all(|(left, right)| left.id == right.id)
+            }
+            _ => false,
+        }
+    }
+}
+
+pub(crate) struct Fiber {
     serial: u64,
     owner: Rc<Owner>,
     context: Context,
@@ -246,13 +299,91 @@ struct Fiber {
     parent_effect: RefCell<Option<Effect>>,
     state: Cell<FiberState>,
     revision: Cell<u64>,
-    settled_revision: Cell<u64>,
+    candidates: RefCell<Vec<service::Candidate>>,
+    target: RefCell<Rc<Target>>,
+    settled: RefCell<Option<Rc<Target>>>,
     loaded: Cell<bool>,
     failure: RefCell<Option<LifecycleError>>,
     driving: Cell<bool>,
     completion: RefCell<Option<Receiver>>,
 }
 impl Fiber {
+    pub(crate) fn state(&self) -> FiberState {
+        self.state.get()
+    }
+    fn set_state(&self, state: &Rc<State>, host: &LocalSet, next: FiberState) {
+        let previous = self.state.replace(next);
+        if previous != next && (previous == FiberState::Active || next == FiberState::Active) {
+            service::notify(state, host, &self.owner);
+        }
+    }
+    fn transition(&self, state: &Rc<State>, next: FiberState) -> Result<(), LifecycleError> {
+        let host = state.admit()?;
+        self.set_state(state, &host, next);
+        Ok(())
+    }
+    fn refresh(self: &Rc<Self>, state: &Rc<State>, host: &LocalSet) {
+        if !self.owner.live.get() || self.failure.borrow().is_some() {
+            return;
+        }
+        let target = Rc::new(Target {
+            revision: self.revision.get(),
+            bindings: (|| {
+                let mut bindings = Vec::new();
+                for candidate in self.candidates.borrow().iter() {
+                    let Some(publication) = candidate.clone()? else {
+                        return Ok(None);
+                    };
+                    bindings.push(publication);
+                }
+                Ok(Some(bindings))
+            })(),
+        });
+        if self.target.borrow().same(&target) {
+            return;
+        }
+        let old = self.target.replace(target);
+        drop(old);
+        drop(self.kick(state, host));
+    }
+    fn check_services(self: &Rc<Self>, state: &Rc<State>, host: &LocalSet, names: &[String]) {
+        if !self.owner.live.get() || self.failure.borrow().is_some() {
+            return;
+        }
+        for (index, dependency) in self.owner.dependencies.iter().enumerate() {
+            if names.contains(&dependency.name) {
+                let candidate = service::resolve(state, dependency);
+                if !self.owner.live.get() {
+                    return;
+                }
+                let old = std::mem::replace(&mut self.candidates.borrow_mut()[index], candidate);
+                drop(old);
+            }
+        }
+        self.refresh(state, host);
+    }
+    fn forget_targets(&self) {
+        let old_target = self.target.replace(Rc::new(Target {
+            revision: self.revision.get(),
+            bindings: Ok(None),
+        }));
+        let settled = self.settled.borrow_mut().take();
+        let candidates = self
+            .candidates
+            .replace(vec![Ok(None); self.owner.dependencies.len()]);
+        drop((old_target, settled, candidates));
+    }
+    fn drifted(&self) -> bool {
+        if !self.owner.live.get() {
+            return self.state.get() != FiberState::Disposed;
+        }
+        self.failure.borrow().is_none()
+            && self
+                .settled
+                .borrow()
+                .as_ref()
+                .is_none_or(|settled| !Rc::ptr_eq(settled, &self.target.borrow()))
+    }
     fn outcome(&self) -> Outcome {
         if self.state.get() == FiberState::Disposed {
             Ok(FiberState::Disposed)
@@ -268,36 +399,30 @@ impl Fiber {
             None => LifecycleTask::resolved(self.outcome()),
         }
     }
-    fn kick(self: &Rc<Self>, state: &Rc<State>) -> Result<LifecycleTask, LifecycleError> {
-        let host = state.admit()?;
+    fn kick(self: &Rc<Self>, state: &Rc<State>, host: &LocalSet) -> LifecycleTask {
         if self.driving.replace(true) {
-            return Ok(self.ready());
+            return self.ready();
         }
         let (sender, receiver) = watch::channel(None);
         *self.completion.borrow_mut() = Some(receiver.clone());
         if self.loaded.get() || !self.owner.live.get() {
-            self.state.set(FiberState::Unloading);
+            self.set_state(state, host, FiberState::Unloading);
         } else {
-            self.state.set(FiberState::Loading);
+            self.set_state(state, host, FiberState::Loading);
         }
         let fiber = self.clone();
         let runtime = state.clone();
-        let worker = state.spawn(&host, {
+        let worker = state.spawn(host, {
             let fiber = fiber.clone();
             let runtime = runtime.clone();
             async move { fiber.drive(runtime).await }
         });
-        state.spawn(&host, async move {
+        state.spawn(host, async move {
             let mut worker = worker;
             let outcome = loop {
                 match worker.await {
                     Ok(result) => {
-                        let drift = (!fiber.owner.live.get()
-                            && fiber.state.get() != FiberState::Disposed)
-                            || (fiber.owner.live.get()
-                                && fiber.failure.borrow().is_none()
-                                && fiber.revision.get() != fiber.settled_revision.get());
-                        if drift {
+                        if fiber.drifted() {
                             let host = match runtime.admit() {
                                 Ok(host) => host,
                                 Err(error) => break Err(error.into()),
@@ -326,16 +451,17 @@ impl Fiber {
             fiber.driving.set(false);
             sender.send_replace(Some(outcome));
         });
-        Ok(LifecycleTask::waiting(receiver))
+        LifecycleTask::waiting(receiver)
     }
 
     fn dispose(self: &Rc<Self>, state: &Rc<State>) -> Result<LifecycleTask, LifecycleError> {
-        state.admit()?;
+        let host = state.admit()?;
         self.owner.assert_not_cleaning()?;
         if self.state.get() == FiberState::Disposed {
             return Ok(LifecycleTask::resolved(Ok(FiberState::Disposed)));
         }
         self.owner.live.set(false);
+        self.forget_targets();
         let parent = self.parent_effect.borrow_mut().take();
         if let Some(parent) = parent {
             if let Some(owner) = parent.owner.upgrade() {
@@ -362,7 +488,7 @@ impl Fiber {
                 drop(stale);
             }
         }
-        self.kick(state)
+        Ok(self.kick(state, &host))
     }
 
     async fn drain(&self, state: &Rc<State>) -> Result<(), LifecycleError> {
@@ -378,30 +504,50 @@ impl Fiber {
                 state.start(&host, self.owner.clone(), callbacks, true)
             }
         };
+        drop(host);
         completion.await.map_err(|error| match error {
             crate::CompletionError::HostStopped => LifecycleError::HostStopped,
             _ => LifecycleError::DriverPanicked,
         })?;
+        self.owner.release_dependencies();
         Ok(())
     }
 
     async fn drive(self: Rc<Self>, state: Rc<State>) -> Outcome {
         loop {
             if self.loaded.get() || !self.owner.live.get() {
-                self.state.set(FiberState::Unloading);
+                self.transition(&state, FiberState::Unloading)?;
                 self.drain(&state).await?;
                 self.loaded.set(false);
             }
             if !self.owner.live.get() {
-                self.state.set(FiberState::Disposed);
-                self.settled_revision.set(self.revision.get());
+                self.transition(&state, FiberState::Disposed)?;
                 return Ok(FiberState::Disposed);
             }
-            let target = self.revision.get();
-            self.state.set(FiberState::Loading);
+            let target = self.target.borrow().clone();
+            let bindings = match &target.bindings {
+                Ok(Some(bindings)) => bindings.clone(),
+                Ok(None) => {
+                    self.transition(&state, FiberState::Pending)?;
+                    *self.settled.borrow_mut() = Some(target);
+                    return Ok(FiberState::Pending);
+                }
+                Err(error) => {
+                    let failure = CleanupFailure::returned(Box::new(error.clone()));
+                    state.report_for(&self.owner, failure.clone());
+                    let error = LifecycleError::Callback(failure);
+                    *self.failure.borrow_mut() = Some(error.clone());
+                    self.forget_targets();
+                    self.transition(&state, FiberState::Failed)?;
+                    return Err(error);
+                }
+            };
+            self.owner.commit(bindings);
+            self.loaded.set(true);
+            self.transition(&state, FiberState::Loading)?;
             // A queued restart/dispose can supersede this load before user code begins.
             tokio::task::yield_now().await;
-            if !self.owner.live.get() || target != self.revision.get() {
+            if !self.owner.live.get() || !Rc::ptr_eq(&target, &self.target.borrow()) {
                 continue;
             }
             let resolved = self
@@ -417,25 +563,26 @@ impl Fiber {
                 }
                 Err(failure) => Err(failure),
             };
-            self.loaded.set(true);
             if let Err(failure) = outcome {
                 state.report_for(&self.owner, failure.clone());
-                self.state.set(FiberState::Unloading);
+                self.transition(&state, FiberState::Unloading)?;
                 self.drain(&state).await?;
                 self.loaded.set(false);
-                if self.owner.live.get() && target == self.revision.get() {
+                if self.owner.live.get() && Rc::ptr_eq(&target, &self.target.borrow()) {
                     let error = LifecycleError::Callback(failure);
                     *self.failure.borrow_mut() = Some(error.clone());
-                    self.state.set(FiberState::Failed);
-                    self.settled_revision.set(target);
+                    self.forget_targets();
+                    self.transition(&state, FiberState::Failed)?;
                     return Err(error);
                 }
                 continue;
             }
-            if self.owner.live.get() && target == self.revision.get() {
-                self.state.set(FiberState::Active);
-                self.settled_revision.set(target);
-                return Ok(FiberState::Active);
+            if self.owner.live.get() && Rc::ptr_eq(&target, &self.target.borrow()) {
+                self.transition(&state, FiberState::Active)?;
+                if Rc::ptr_eq(&target, &self.target.borrow()) {
+                    *self.settled.borrow_mut() = Some(target);
+                    return Ok(FiberState::Active);
+                }
             }
         }
     }
@@ -483,7 +630,8 @@ impl<C: 'static> FiberHandle<C> {
         self.fiber.context.clone()
     }
     /// Await the current lifecycle pass without creating work. Self-waits are
-    /// explicitly refused instead of stalling apply/cleanup.
+    /// explicitly refused instead of stalling apply/cleanup. A missing dependency
+    /// can settle this pass to Pending; later service arrival starts another pass.
     pub fn ready(&self) -> Result<LifecycleTask, LifecycleError> {
         self.fiber.owner.assert_not_cleaning()?;
         Ok(self.fiber.ready())
@@ -495,7 +643,7 @@ impl<C: 'static> FiberHandle<C> {
             .runtime
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
-        state.admit()?;
+        let host = state.admit()?;
         self.fiber.owner.admit()?;
         self.fiber.owner.assert_not_cleaning()?;
         if let Some(error) = self.fiber.failure.borrow().clone() {
@@ -508,7 +656,8 @@ impl<C: 'static> FiberHandle<C> {
                 .checked_add(1)
                 .ok_or(AdmissionError::IdentityExhausted)?,
         );
-        self.fiber.kick(&state)
+        self.fiber.refresh(&state, &host);
+        Ok(self.fiber.ready())
     }
     /// Mark terminal and unlink residency/parent registration now, then wait for
     /// in-flight apply, owned children, and resources to finish teardown.
@@ -625,7 +774,7 @@ impl Context {
             .runtime
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
-        state.admit()?;
+        let host = state.admit()?;
         let parent = self.owner()?;
         parent.admit()?;
         let serial = state
@@ -646,7 +795,7 @@ impl Context {
         } else {
             group.definition.name.clone()
         };
-        let owner = Owner::child(name, &parent);
+        let owner = Owner::child(name, &parent, plugin.dependencies.clone());
         let context = self.with_owner(&owner);
         let fiber = Rc::new(Fiber {
             serial,
@@ -658,12 +807,18 @@ impl Context {
             parent_effect: RefCell::new(None),
             state: Cell::new(FiberState::Pending),
             revision: Cell::new(0),
-            settled_revision: Cell::new(0),
+            candidates: RefCell::new(vec![Ok(None); plugin.dependencies.len()]),
+            target: RefCell::new(Rc::new(Target {
+                revision: 0,
+                bindings: Ok(None),
+            })),
+            settled: RefCell::new(None),
             loaded: Cell::new(false),
             failure: RefCell::new(None),
             driving: Cell::new(false),
             completion: RefCell::new(None),
         });
+        *fiber.owner.fiber.borrow_mut() = Rc::downgrade(&fiber);
         let parent_effect = self
             .on_dispose({
                 let fiber = fiber.clone();
@@ -684,11 +839,33 @@ impl Context {
         *fiber.parent_effect.borrow_mut() = Some(parent_effect);
         group.fibers.borrow_mut().insert(serial, fiber.clone());
         state.registry.0.borrow_mut().insert(plugin.key(), group);
-        drop(fiber.kick(&state)?);
+        let names: Vec<_> = plugin
+            .dependencies
+            .iter()
+            .map(|dependency| dependency.name.clone())
+            .collect();
+        fiber.check_services(&state, &host, &names);
         Ok(FiberHandle {
             fiber,
             runtime: self.runtime.clone(),
             marker: PhantomData,
         })
+    }
+
+    /// Create a parent-owned, no-config consumer with required typed services.
+    pub fn inject<F, Fut, E>(
+        &self,
+        dependencies: impl IntoIterator<Item = Dependency>,
+        apply: F,
+    ) -> Result<FiberHandle<()>, LifecycleError>
+    where
+        F: Fn(Context) -> Fut + 'static,
+        Fut: Future<Output = Result<(), E>> + 'static,
+        E: Into<BoxError> + 'static,
+    {
+        self.plugin(
+            &Plugin::new("", move |ctx, ()| apply(ctx)).injecting(dependencies),
+            (),
+        )
     }
 }

@@ -206,7 +206,9 @@ impl Context {
     /// order and polled concurrently. Registrations made after this snapshot
     /// belong to the next drain. Concurrent drain requests share the current
     /// operation. This does not dispose a plugin or change its state; use its
-    /// FiberHandle for lifecycle control. A self/ancestor drain from setup or
+    /// FiberHandle for lifecycle control. Owned services stop admitting consumers
+    /// during the drain; their exact dependents finish before resources are cleaned.
+    /// A self/ancestor drain from setup or
     /// cleanup is refused before admission. Root drain also owns child disposal.
     pub fn drain(&self) -> Result<Completion, AdmissionError> {
         let state = self

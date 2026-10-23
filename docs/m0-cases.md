@@ -8,9 +8,10 @@ must be expanded to every upstream variant when ported; line numbers locate
 the declaration, not an assertion of coverage.
 
 Check an item only when an integrated production Rust test proves its behavior,
-or link an explicit Rust representation restriction instead. M2/M3 mark
+or link an explicit Rust representation restriction instead. M2/M3/M4 mark
 integrated root/lifecycle evidence; the [M2 mapping](m2.md#evidence-and-remaining-case-coverage)
-and [M3 mapping](m3.md#evidence-and-remaining-source-coverage) record API
+and [M3 mapping](m3.md#evidence-and-remaining-source-coverage) plus
+[M4 mapping](m4.md#evidence-and-remaining-cases) record API
 restrictions and remaining gaps. A passing disposable M0
 model alone is still not production parity. The [M0 results](m0.md) map its
 selected experiments to source-backed expectations. File-level
@@ -84,7 +85,7 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 - [ ] `inertia lock 2` (line 27)
 - [ ] `inertia lock 3` (line 49)
 - [x] `plugin error` (line 71)
-- [ ] `failed fiber does not re-enter on dependency refresh` (line 93)
+- [x] `failed fiber does not re-enter on dependency refresh` (line 93)
 - [ ] `update recovers a failed fiber` (line 108)
 - [ ] `update waits for asynchronous recovery` (line 122)
 - [ ] `update surfaces a failed recovery to its caller` (line 144)
@@ -169,31 +170,31 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/reflect.spec.ts); production owner: **M4**.
 
 - [ ] `Context.is()` (line 6)
-- [ ] `access check` (line 12)
+- [x] `access check` (line 12; explicit typed access/static Context representation, see M4)
 - [ ] `service injection` (line 30)
-- [ ] `service inject leak` (line 57)
+- [x] `service inject leak` (line 57)
 
 ## service-dispose.spec.ts
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/service-dispose.spec.ts); production owner: **M4**.
 
 - [ ] `releases an injected binding after providing the same name in another realm (%s)` (line 31; all parameter variants)
-- [ ] `waits for a disposing consumer that has already left the registry` (line 48)
-- [ ] `withdraws one binding without waiting for another binding from the same provider` (line 73)
-- [ ] `retains resources during consumer cleanup (%s)` (line 95; all parameter variants)
-- [ ] `retains transitive dependencies while a consumer providing another service drains` (line 131)
-- [ ] `retains dependencies through in-flight setup and rollback (failure: %s)` (line 156; all parameter variants)
-- [ ] `releases dependencies after a cleanup error` (line 184)
-- [ ] `keeps provider listeners alive through the final consumer event` (line 199)
-- [ ] `allows unrelated providers and sibling effects to clean up concurrently` (line 214)
-- [ ] `supports composed provider effects (owner shutdown: %s)` (line 238; all parameter variants)
-- [ ] `keeps an inherited service accessible to a child in a composed effect` (line 271)
-- [ ] `retains an ancestor injection until its child finishes cleanup` (line 287)
-- [ ] `waits for a child that explicitly injects its parent service` (line 307)
+- [x] `waits for a disposing consumer that has already left the registry` (line 48)
+- [x] `withdraws one binding without waiting for another binding from the same provider` (line 73)
+- [x] `retains resources during consumer cleanup (%s)` (line 95; all parameter variants)
+- [x] `retains transitive dependencies while a consumer providing another service drains` (line 131)
+- [x] `retains dependencies through in-flight setup and rollback (failure: %s)` (line 156; all parameter variants)
+- [x] `releases dependencies after a cleanup error` (line 184)
+- [x] `keeps provider listeners alive through the final consumer event` (line 199)
+- [x] `allows unrelated providers and sibling effects to clean up concurrently` (line 214)
+- [x] `supports composed provider effects (owner shutdown: %s)` (line 238; all parameter variants)
+- [x] `keeps an inherited service accessible to a child in a composed effect` (line 271)
+- [x] `retains an ancestor injection until its child finishes cleanup` (line 287)
+- [x] `waits for a child that explicitly injects its parent service` (line 307)
 - [ ] `tracks same-name services in separate isolation realms (root shutdown: %s)` (line 323; all parameter variants)
-- [ ] `withdraws only the old binding without waiting for the next load` (line 355)
-- [ ] `waits for current and withdrawn bindings during provider disposal (withdrawn first: %s)` (line 386; all parameter variants)
-- [ ] `replaces a binding from the same provider during consumer initialization` (line 418)
+- [x] `withdraws only the old binding without waiting for the next load` (line 355)
+- [x] `waits for current and withdrawn bindings during provider disposal (withdrawn first: %s)` (line 386; all parameter variants)
+- [x] `replaces a binding from the same provider during consumer initialization` (line 418; also covers equal/same-Rc values)
 
 ## service.spec.ts
 
@@ -203,10 +204,15 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 - [ ] `traceable effect (with inject)` (line 36)
 - [ ] `traceable effect (without inject)` (line 76)
 - [ ] `compare snapshot` (line 109)
-- [ ] `multiple injects` (line 128)
-- [ ] `dispose dependents before provider` (line 191)
-- [ ] `dispose dependents before provider restarts` (line 203)
+- [x] `multiple injects` (line 128; explicit typed Plugin/inject equivalents)
+- [x] `dispose dependents before provider` (line 191)
+- [x] `dispose dependents before provider restarts` (line 203)
 - [ ] `dispose dependents before isolated provider` (line 217)
+
+M4 covers delayed activation through explicit async apply, but `pending inject`
+and the Service.init-dependent snapshot case remain unchecked as complete source
+protocols. The two realm-dependent disposal declarations, isolated-provider
+cleanup, tracing/mixins, and internal/status transition assertions remain M5/M6.
 
 ## shadow.spec.ts
 

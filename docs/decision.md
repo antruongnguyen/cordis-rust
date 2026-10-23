@@ -4,6 +4,52 @@ A lightweight log of decisions made for this project and the reasoning behind
 them. Newest first. This is intentionally not a heavy ADR process; it records
 *what we chose and why* so the choices aren't re-litigated silently.
 
+## 2026-10-23 — M4 separates service slots, publications, and committed loads
+
+Use explicit `ServiceKey<T>` named slots with checked internal type erasure,
+opaque `PublicationId` occurrences, and Fiber-owned publication effects.
+`set` replaces only the value: it preserves the occurrence and does not notify
+consumers. Withdrawal removes only the exact current occurrence before waiting;
+republication always creates a new occurrence, even for the same `Rc` value.
+Checked access walks own provisions and the nearest declaring ancestor's
+committed snapshot. Root access and explicit direct lookups remain distinct.
+Captured plugin Contexts do not acquire root authority when used from root.
+
+Injection lists are captured per Fiber, independently of shared Plugin identity.
+Resolve affected candidates on service notifications, not on set or arbitrary
+restart. A lifecycle target combines the restart revision and exact candidate
+identities. Commit and retain its dependencies before validation/apply, and
+release only after setup, rollback, children, and resource cleanup finish.
+Missing dependencies remain Pending without validation. Failed Fibers do not
+retry on refresh; config-update recovery remains M5.
+
+**Why:** Value equality cannot detect replacement or safely identify the load
+whose teardown must finish. Per-name resolution preserves upstream readiness
+check timing without adding config/intercept machinery prematurely.
+
+## 2026-10-23 — Provider retention is independent of Registry residency
+
+Each publication tracks exact dependent Fiber identities until their committed
+load releases them. Provider owners retain current and already-withdrawn
+publications and wait for their dependents before draining resources/listeners.
+Individual withdrawal waits only for its own occurrence, not the provider's
+other publications or a consumer's replacement load. Self-provisions do not add
+a self-dependency.
+
+Whole-journal drains temporarily stop the owner's services admitting consumers,
+including root-owned publications, while remaining reusable snapshot drains.
+Unrelated owner cleanup and independent sibling effects stay concurrent;
+composition still uses the existing reverse sequential effect protocol.
+Publication/Context links to owners/runtime are weak. Lifecycle drains release
+their temporary executor handle before awaiting cleanup, so host destruction
+is cancellation rather than a host/task reference cycle.
+
+**Why:** Removed consumers still need their providers, and transitive teardown
+must preserve final service calls/events. Scanning only the Registry, waiting for
+a consumer's latest ready barrier, or serializing every root effect is incorrect.
+See [M4 contracts and evidence](m4.md). Full isolation/use-site tracing and
+internal service/status hook protocols remain M5/M6.
+
 ## 2026-10-23 — M3 separates resource ownership from runtime residency
 
 Each Fiber owns its own cleanup journal and observable state. Registry groups

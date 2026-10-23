@@ -98,8 +98,10 @@ unless an approved requirement demonstrates a gap. See
   failure-safe replacement, destination updates and explicit processor recovery.
 - [x] `gh` collector: bounded complete snapshots, timeouts, one-shot/periodic
   operation, reconfiguration and joined shutdown.
-- [ ] Loopback webhook journal: raw-body signature verification, repository/event
+- [x] Loopback webhook journal: raw-body signature verification, repository/event
   validation, limits, append-before-ack and graceful in-flight shutdown.
+- [ ] Final consumer acceptance: explicitly selected Rust 1.85.0/stable matrices,
+  the six paired scenarios, and offline executable checks.
 
 Public ingress, real GitHub webhook configuration/delivery, mutations,
 notifications to other people and durable/exactly-once delivery are excluded.

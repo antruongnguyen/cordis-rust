@@ -33,6 +33,15 @@ CLI configuration is startup-only; typed handles expose live updates in tests.
 Unix subprocess fixtures use FIFO gates and a controlled clock, not sleeps or
 live authenticated services.
 
+The webhook journal uses library HMAC-SHA256 verification before decoding,
+Axum extraction/routing, and a directly hosted Hyper HTTP/1 loop. Its local
+JoinSet owns every connection and bounds header reads; this avoids hiding
+connection tasks in the outer Tokio executor beyond Cordis host ownership.
+A bounded Send-message channel bridges HTTP handlers to the local, non-Send
+injected file writer. Success means append/flush before 204, not crash durability.
+Writer errors poison the sink and reject later requests until reconfiguration.
+Signed local replay is evidence only for the receiver, not real GitHub delivery.
+
 **Why:** The user identified repository activity as useful, providing a concrete
 consumer instead of indefinite parity expansion. The bounded applications can
 demonstrate actual I/O while preserving local hosting and resource contracts.

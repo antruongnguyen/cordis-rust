@@ -402,8 +402,14 @@ pub(crate) fn start(root: &Context, config: Config, output: PathBuf) -> Result<W
                             Ok::<_, BoxError>(())
                         });
                         let (stop, _) = watch::channel(false);
-                        let server =
-                            tokio::task::spawn_local(serve(listener, router, stop.clone()));
+                        let shutdown = stop.clone();
+                        let server = tokio::task::spawn_local(async move {
+                            let result = serve(listener, router, shutdown).await;
+                            if let Err(error) = &result {
+                                eprintln!("webhook server failed: {error}");
+                            }
+                            result
+                        });
                         address.send_replace(Some(bound));
                         Ok::<_, Infallible>(Disposer::new(move || async move {
                             address.send_replace(None);

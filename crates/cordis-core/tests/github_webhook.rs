@@ -11,12 +11,12 @@ use sha2::Sha256;
 use std::{net::SocketAddr, time::Duration};
 use support::Directory;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
     net::TcpStream,
 };
 use webhook::{Config, Journal};
 
-const SECRET: &[u8] = b"synthetic-local-test-key-not-a-secret";
+const SECRET: &[u8] = b"synthetic-webhook-test-key-00000";
 const DELIVERY: &str = "01234567-89ab-cdef-0123-456789abcdef";
 const PAYLOAD: &[u8] = include_bytes!("fixtures/github_issue_event.json");
 
@@ -48,10 +48,12 @@ fn headers(body: &[u8], event: &str, signature: &str, extra: &str) -> String {
     )
 }
 
-async fn response(mut stream: TcpStream) -> u16 {
-    let mut bytes = Vec::new();
-    stream.read_to_end(&mut bytes).await.unwrap();
-    let response = String::from_utf8(bytes).unwrap();
+async fn response(stream: TcpStream) -> u16 {
+    let mut response = String::new();
+    BufReader::new(stream)
+        .read_line(&mut response)
+        .await
+        .unwrap();
     response.split_whitespace().nth(1).unwrap().parse().unwrap()
 }
 
@@ -125,9 +127,12 @@ async fn authenticated_events_append_before_ack_and_invalid_requests_do_not_writ
             }).to_string();
             assert_eq!(post(address, pull.as_bytes(), "pull_request", &sign(SECRET, pull.as_bytes()), "").await, 204);
             assert_eq!(post(address, PAYLOAD, "issues", &sign(SECRET, PAYLOAD), "").await, 204);
+            let mut boundary = PAYLOAD.to_vec();
+            boundary.resize(webhook::BODY_LIMIT, b' ');
+            assert_eq!(post(address, &boundary, "issues", &sign(SECRET, &boundary), "").await, 204);
             let good = tokio::fs::read_to_string(&output).await.unwrap();
             let records: Vec<serde_json::Value> = good.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
-            assert_eq!(records.len(), 3, "duplicate deliveries are journaled, not silently deduplicated");
+            assert_eq!(records.len(), 4, "duplicate deliveries are journaled, not silently deduplicated");
             assert_eq!(records[0]["delivery"], DELIVERY);
             assert_eq!(records[0]["event"], "issues");
             assert_eq!(records[0]["payload"], serde_json::from_slice::<serde_json::Value>(PAYLOAD).unwrap());
@@ -255,7 +260,7 @@ async fn held_requests_retain_old_journal_through_reconfiguration_and_shutdown()
 async fn failed_bind_requires_explicit_recovery_and_invalid_config_cannot_open_output() {
     let dir = Directory::new("webhook-recovery");
     let mut invalid = config();
-    invalid.secret.clear();
+    invalid.secret = SECRET[..31].to_vec();
     assert!(
         webhook::run(invalid, dir.path("invalid.jsonl"))
             .await
@@ -313,10 +318,13 @@ async fn body_deadline_and_connection_limit_are_measured_without_sleeps() {
                 let app = webhook::start(&root, config(), output.clone()).unwrap();
                 let address = ready(&app).await;
                 let request = held(address, PAYLOAD, SECRET).await;
+                let mut waiting = Box::pin(response(request));
                 tokio::time::pause();
-                tokio::time::advance(webhook::REQUEST_TIMEOUT + Duration::from_secs(1)).await;
+                tokio::time::advance(webhook::REQUEST_TIMEOUT - Duration::from_secs(1)).await;
+                assert!(waiting.as_mut().now_or_never().is_none());
+                tokio::time::advance(Duration::from_secs(1) + Duration::from_millis(1)).await;
                 tokio::time::resume();
-                assert_eq!(response(request).await, 504);
+                assert_eq!(waiting.await, 504);
                 assert!(tokio::fs::read(&output).await.unwrap().is_empty());
                 let mut held_requests = Vec::new();
                 for _ in 0..64 {

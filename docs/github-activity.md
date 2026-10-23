@@ -119,13 +119,99 @@ and explicit recovery follows ignored provider refresh. These subprocess
 fixtures require Unix, `/bin/sh`, `mkfifo`, `/bin/kill`, and `head`; the commands
 themselves use portable Tokio process APIs. No live GitHub request is exercised.
 
-## Remaining approved slice
+## Signed loopback webhook journal
 
-The webhook receiver is approved but not yet implemented. It will verify
-raw-body HMAC-SHA256 signatures, accept only selected issue/PR events for the
-configured repository, and acknowledge after append.
+Set `CORDIS_GITHUB_WEBHOOK_SECRET` from your local secret manager (at least
+32 bytes; never commit a real key), then:
+
+```sh
+cargo run -p cordis-core --example github_webhook --locked -- \
+  antruongnguyen/cordis-rust /tmp/cordis-events.jsonl 3000
+```
+
+Only loopback addresses are admitted; the CLI binds `127.0.0.1` and defaults
+to port 3000. Port 0 selects an available port and prints it. There is no TLS,
+public ingress, account/token creation, webhook configuration, or notification
+delivery. Actual GitHub cannot deliver to this loopback listener. The executed
+evidence is signed local replays, not live GitHub delivery.
+
+`POST /github` requires exactly one each of Content-Type (`application/json`),
+`X-GitHub-Event`, `X-GitHub-Delivery` (UUID-shaped), and
+`X-Hub-Signature-256`. Only `issues` and `pull_request` events are accepted.
+HMAC-SHA256 verification covers the exact raw body, using the library's
+constant-time MAC comparison. It precedes JSON parsing. Payload validation checks
+the exact repository full name, nonempty action/title, positive target number
+and canonical target URL. This is a bounded envelope contract, not validation of
+every field in GitHub's complete evolving schemas. Use canonical repository case.
+Ping events are intentionally not supported in this local-only slice.
+
+The authenticated payload is appended as one JSONL record with `delivery`,
+`event`, `received_at` (Unix seconds), and `payload`. HTTP 204 means write and
+flush completed before acknowledgement; it does not mean fsync/crash durability.
+Delivery IDs are preserved but duplicates are not deduplicated. The journal
+contains event metadata, potentially from private repositories: choose a suitably
+protected local output directory and do not publish it accidentally.
+
+### Limits, failures and resource ownership
+
+- Body limit: 256 KiB, including accepted exact-boundary and rejected
+  boundary-plus-one tests. The header buffer limit is 32 KiB.
+- At most 64 active HTTP connections and 32 queued journal entries. Excess
+  connections close; excess queued deliveries receive HTTP 503.
+- Headers have a 10-second read deadline; handlers have a separate 10-second
+  body/ack deadline. Invalid signatures return 401, invalid JSON/headers 400,
+  unsupported events/repository/payload 422, oversize bodies 413, journal errors
+  500, and exhausted handler deadlines 504.
+- An event admitted to the journal queue may still append after its client
+  disconnects or receives 504. It has not received a success acknowledgement;
+  a retry can therefore duplicate it. Request cancellation never aborts an
+  already-admitted file write.
+- An append/flush failure is reported and poisons that journal instance.
+  Later requests cannot receive a false success. A failed append may leave a
+  partial final line; repair/reconciliation is manual before reusing that file.
+  Reconfigure to a healthy destination rather than silently retry writes.
+
+An initialized plugin owns the actual file; an injecting receiver owns the
+bounded queue, serialized writer, listener, and all HTTP connection tasks.
+The application uses Axum routing/extraction over a directly hosted Hyper
+HTTP/1 loop. A local JoinSet owns every connection, including header-read
+timeouts; no connection is detached into an unowned Tokio task.
+
+Cleanup stops acceptance, gracefully joins in-flight HTTP work and queued writes,
+then releases the exact provider and closes its file. Config/destination updates
+use those same barriers, with consumer readiness awaited separately. Typed
+handles provide programmatic reconfiguration and Failed-listener recovery;
+the CLI is startup-configured and uses Ctrl-C for awaited teardown.
+Malformed/disconnected client connections are logged without stopping unrelated
+requests. Unexpected server/task failures are logged and retained for cleanup's
+error result, not silently converted to successful teardown.
+
+### Local replay
+
+With the listener running and the same secret available in the calling shell:
+
+```sh
+payload=crates/cordis-core/tests/fixtures/github_issue_event.json
+signature=$(python3 -c 'import hashlib,hmac,os,pathlib,sys; print("sha256="+hmac.new(os.environ["CORDIS_GITHUB_WEBHOOK_SECRET"].encode(),pathlib.Path(sys.argv[1]).read_bytes(),hashlib.sha256).hexdigest())' "$payload")
+curl --fail-with-body http://127.0.0.1:3000/github \
+  -H 'Content-Type: application/json' \
+  -H 'X-GitHub-Event: issues' \
+  -H 'X-GitHub-Delivery: 01234567-89ab-cdef-0123-456789abcdef' \
+  -H "X-Hub-Signature-256: $signature" \
+  --data-binary "@$payload"
+```
+
+This fixture and its delivery ID are synthetic. `tests/github_webhook.rs` checks
+RFC 4231's independent HMAC vector, both event types, raw-body tampering,
+malformed/duplicate headers and invalid payloads, limits, acknowledgement timing,
+key rotation, bind recovery, exact old-file retention through reconfiguration,
+and awaited shutdown. HTTP `100 Continue` gates hold in-flight bodies; a
+controlled Tokio clock tests the deadline, and the 65th connection is rejected.
+Unix FIFO fixtures also prove real write failure/poisoning without a fake writer.
+No test relies on live GitHub or sleeps.
+
 Public ingress, creating GitHub webhooks, live delivery, mutations, notifications
-to other people and durable/exactly-once delivery are excluded.
+to other people and durable/exactly-once delivery remain excluded.
 
 ## Acceptance
 

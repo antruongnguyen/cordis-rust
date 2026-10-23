@@ -177,9 +177,12 @@ integrated framework or resolve every behavioral gap.
   The collector stores a latest bounded snapshot, not complete history; its two
   queries are not a GitHub transaction. Programmatic updates join periodic work;
   CLI configuration is startup-only and subprocess tests require Unix utilities.
-  Signed loopback webhook journaling remains the next approved slice.
+  Signed webhook journaling is loopback-only, with bounded envelope validation
+  rather than every GitHub schema field. Append/flush is not crash durability:
+  timeouts/disconnects may precede a later append, duplicate deliveries remain,
+  and failed writes may require manual partial-line repair.
   Public ingress, live webhook delivery, mutations, and durable/exactly-once
-  delivery are excluded.
+  delivery are excluded. See the consumer document for exact resource/time limits.
 - Only `cordis-core` is in scope initially; satellite packages are deferred.
 - No stability guarantees — the API will change freely until the core is proven.
 - `spikes/m0` uses separate test-only models: one dependency per lifecycle

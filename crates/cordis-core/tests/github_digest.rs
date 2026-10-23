@@ -88,12 +88,18 @@ async fn bounded_input_and_failed_rename_do_not_publish_partial_reports() {
     let dir = Directory::new("digest");
     let input = dir.path("snapshot.json");
     let output = dir.path("report.md");
+    let mut boundary = INPUT.as_bytes().to_vec();
+    boundary.resize(4 * 1024 * 1024, b' ');
+    tokio::fs::write(&input, boundary).await.unwrap();
+    digest::run(input.clone(), output.clone()).await.unwrap();
+    assert_eq!(tokio::fs::read_to_string(&output).await.unwrap(), OUTPUT);
     tokio::fs::write(&input, vec![b' '; 4 * 1024 * 1024 + 1])
         .await
         .unwrap();
     assert!(digest::run(input.clone(), output.clone()).await.is_err());
-    assert!(!output.exists());
+    assert_eq!(tokio::fs::read_to_string(&output).await.unwrap(), OUTPUT);
     tokio::fs::write(&input, INPUT).await.unwrap();
+    tokio::fs::remove_file(&output).await.unwrap();
     tokio::fs::create_dir(&output).await.unwrap();
     assert!(digest::run(input, output.clone()).await.is_err());
     assert!(output.is_dir());

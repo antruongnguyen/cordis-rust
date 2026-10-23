@@ -8,6 +8,13 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
+- Signed loopback GitHub webhook journal with constant-time raw-body HMAC-SHA256
+  verification, bounded HTTP/queue resources, append-before-ack, poisoned-sink
+  errors, key/destination updates, and owned/joined HTTP and file tasks.
+  Six application tests cover an independent MAC vector, real local HTTP,
+  exact body/connection thresholds, gated old-file retention/shutdown and
+  real FIFO write errors. All three approved consumers are implemented;
+  the Unix workspace now has 164 integration tests and 17 Rustdoc checks.
 - Bounded `gh` snapshot collector with one-shot/periodic modes, complete atomic
   publication, direct-child deadlines/output limits/reaping, visible periodic
   failures, and joined reconfiguration/shutdown. Three Unix subprocess tests

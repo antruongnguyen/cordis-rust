@@ -81,9 +81,43 @@ async fn executable_collects_complete_snapshot_and_preserves_last_good_on_query_
     let mut invalid = config.clone();
     invalid.repository = "--invalid".into();
     assert!(collector::collect_once(&invalid).await.is_err());
-    invalid = config;
+    invalid = config.clone();
     invalid.interval = Some(Duration::ZERO);
     assert!(collector::collect_once(&invalid).await.is_err());
+    let mut items = Vec::new();
+    for number in 1000..1100 {
+        let mut item = expected["issues"][0].clone();
+        item["number"] = number.into();
+        item["url"] =
+            format!("https://github.com/antruongnguyen/cordis-rust/issues/{number}").into();
+        items.push(item);
+    }
+    let prefix = |items: &Vec<serde_json::Value>| {
+        format!(
+            "if [ \"$1\" = issue ]; then printf '%s\\n' {}; exit 0; fi",
+            quoted(&serde_json::to_string(items).unwrap())
+        )
+    };
+    script(&dir, &prefix(&items), ":");
+    collector::collect_once(&config).await.unwrap();
+    let bounded = tokio::fs::read(&config.output).await.unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&bounded).unwrap()["issues"]
+            .as_array()
+            .unwrap()
+            .len(),
+        100
+    );
+    items.push(items[0].clone());
+    script(&dir, &prefix(&items), ":");
+    assert!(
+        collector::collect_once(&config)
+            .await
+            .unwrap_err()
+            .to_string()
+            .contains("more than 100")
+    );
+    assert_eq!(tokio::fs::read(&config.output).await.unwrap(), bounded);
 }
 
 #[tokio::test(flavor = "current_thread")]

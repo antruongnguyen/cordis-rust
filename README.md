@@ -19,9 +19,9 @@ meta-framework for spatiotemporal composability.
 > This includes superseded/latest load failures, abandoned waits, and explicit
 > recovery. Those slices needed no production changes or new dependencies.
 > The core/parity checkpoint has 152 integration tests and 17 Rustdoc checks.
-> Approved GitHub-activity consumers now add a snapshot digest and bounded `gh`
-> collector (six application tests on Unix); signed loopback webhook journaling
-> follows within that scope.
+> Approved GitHub-activity consumers add a snapshot digest, bounded `gh` collector
+> and signed loopback webhook journal (12 application tests on Unix, for 164
+> workspace integration tests and the same 17 Rustdoc checks).
 > See [GitHub activity consumers](docs/github-activity.md).
 > Application-only dependencies do not extend the production core.
 > No satellite or broader M7 scope has been selected.

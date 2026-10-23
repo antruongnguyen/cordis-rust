@@ -1,0 +1,16 @@
+[package]
+name = "cordis-m0-spike"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[dev-dependencies]
+futures = "0.3.31"
+tokio = { version = "1.48", default-features = false, features = ["rt", "macros", "sync", "time"] }
+
+[lints.rust]
+unsafe_code = "forbid"

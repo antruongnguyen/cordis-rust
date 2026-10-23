@@ -3,9 +3,11 @@
 A Rust reimplementation of [Cordis](https://github.com/cordiverse/cordis) — a
 meta-framework for spatiotemporal composability.
 
-> **Status: greenfield.** This repository currently contains documentation
-> only. There is no published crate, no build, and no install instructions yet.
-> This README describes *intent and plan*, not shipped functionality.
+> **Status: M2 root contract complete.** The unpublished `cordis-core` has local
+> hosting, root effect setup/composition and introspection, synchronous cleanup,
+> typed events, and diagnostic logging. M3's plugin lifecycle is next.
+> Plugins, services, non-root Fibers, and full TS parity are not implemented.
+> The concept map below remains the framework target, not a shipped feature list.
 
 ## Why
 
@@ -51,13 +53,13 @@ are the contract.
 - Feature parity with every satellite Cordis package before the core is solid.
 - A stable public API — this will change freely until the core is proven.
 
-## Planned layout
+## Workspace and planned layout
 
 A Cargo workspace mirroring the original `cordis` packages, built up in stages:
 
 ```
 crates/
-  cordis-core      # Context, Service, Fiber, Registry, Reflect, Events, Logger
+  cordis-core      # Local Context/effects/events/diagnostics; plugins/services planned
   cordis-loader    # (later) plugin loading
   cordis-timer     # (later) timer service
   cordis-logger    # (later) console logger
@@ -68,8 +70,38 @@ Only `cordis-core` is in scope first. The rest are planned, not committed. See
 the [implementation plan](docs/implementation-plan.md) for the source review,
 Rust design gates, milestone dependencies, and acceptance criteria.
 
+## Build and develop
+
+Requires Rust **1.85 or newer**, edition **2024**. The root workspace uses
+Cargo resolver 3. From the repository root:
+
+```sh
+cargo test --workspace --locked
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+```
+
+See [M2 APIs and limits](docs/m2.md), [M1 contracts](docs/m1.md), and the example in the
+[`cordis-core` crate docs](crates/cordis-core/src/lib.rs). The runtime must be
+explicitly driven from Tokio; Context values do not keep their host alive.
+CI covers Rust 1.85.0 and stable, including the independent M0 experiments.
+
+## M0 experiments
+
+Run the unpublished design spikes independently of the production workspace:
+
+```sh
+cargo test --manifest-path spikes/m0/Cargo.toml --locked
+```
+
+See [M0 results](docs/m0.md) for evidence, selected design directions, and limits.
+
 ## Documentation
 
+- [`docs/m1.md`](docs/m1.md) — supported foundation APIs, ownership, and limits.
+- [`docs/m2.md`](docs/m2.md) — effect/event/diagnostic APIs and source-case coverage.
+- [`docs/m0.md`](docs/m0.md) — executable design-spike findings and M1 handoff.
+- [`docs/m0-cases.md`](docs/m0-cases.md) — pinned case-by-case behavioral checklist.
 - [`docs/implementation-plan.md`](docs/implementation-plan.md) — source-backed
   core implementation plan, reference comparison, and validation strategy.
 - [`docs/todo.md`](docs/todo.md) — the porting roadmap.
@@ -87,4 +119,4 @@ Rust design gates, milestone dependencies, and acceptance criteria.
 
 ## License
 
-Not yet chosen. The upstream Cordis is MIT-licensed.
+MIT; see [LICENSE](LICENSE). The TypeScript upstream is also MIT-licensed.

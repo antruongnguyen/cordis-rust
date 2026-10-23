@@ -1,0 +1,19 @@
+[package]
+name = "cordis-core"
+description = "Local runtime, context, and cleanup foundations for the Cordis Rust port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+futures-util.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "time"] }
+
+[lints]
+workspace = true

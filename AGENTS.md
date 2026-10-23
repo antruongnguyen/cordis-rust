@@ -7,9 +7,11 @@ Instructions for agents (and humans) working in this repository.
 `cordis-rust` is a from-scratch Rust reimplementation of the
 [Cordis](https://github.com/cordiverse/cordis) meta-framework.
 
-**Status: greenfield.** As of this writing there is no framework code yet —
-only documentation. Do not assume crates, modules, or build commands exist
-until you have verified them.
+**Status: M2 root contract complete.** The root Rust 2024 workspace contains only the
+unpublished `crates/cordis-core` (Rust 1.85 minimum). Use `cargo test --workspace`.
+Root effects/introspection, typed events, and diagnostic logging are in `docs/m2.md`; plugins,
+services, and non-root Fibers are not implemented. The isolated `spikes/m0`
+package remains research evidence; run it with its own `--manifest-path`.
 
 ## Source of truth
 
@@ -43,6 +45,8 @@ change, update the relevant doc in the same change:
 
 ## Tooling conventions
 
+- After implementing and verifying each milestone, commit its code and related
+  documentation on the current branch. Do not push unless explicitly requested.
 - Use `rg` (ripgrep) instead of `grep` for searching.
 - If a `.codegraph/` directory appears at the repo root, prefer CodeGraph
   (`codegraph explore ...`) over grep/find for understanding code. Indexing is

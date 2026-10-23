@@ -1,0 +1,40 @@
+name: Rust
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  foundations:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        toolchain: [stable, "1.85.0"]
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+      - name: Check formatting
+        if: matrix.toolchain == 'stable'
+        run: |
+          cargo fmt --all --check
+          cargo fmt --manifest-path spikes/m0/Cargo.toml --check
+      - name: Lint
+        if: matrix.toolchain == 'stable'
+        run: |
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo clippy --manifest-path spikes/m0/Cargo.toml --all-targets --locked -- -D warnings
+      - name: Check workspace targets
+        run: cargo check --workspace --all-targets --locked
+      - name: Test workspace and documentation
+        run: cargo test --workspace --locked
+      - name: Preserve M0 evidence
+        run: cargo test --manifest-path spikes/m0/Cargo.toml --locked

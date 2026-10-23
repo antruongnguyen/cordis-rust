@@ -1,8 +1,10 @@
 # Cordis Rust implementation plan
 
-Status: planning only; no framework code exists yet. Target the TypeScript
-Cordis core first, using **Rust edition 2024**. A newer stable edition may be
-adopted deliberately later; an older edition is out of scope.
+Status: M2's root effect/event/diagnostic contract is complete, including sync
+cleanup and effect introspection. See [M2 scope](m2.md), [M1 contracts](m1.md), [M0 results](m0.md),
+and the [case checklist](m0-cases.md).
+Target the TypeScript core using **Rust edition 2024**. A newer stable edition
+may be adopted deliberately later; an older edition is out of scope.
 
 ## 1. Evidence and scope
 
@@ -202,9 +204,10 @@ in [decision.md](decision.md) before implementation depends on it.
 Start with a virtual workspace containing only `crates/cordis-core`. Set
 `[workspace.package] edition = "2024"`, inherit it in all members, and use
 `[workspace] resolver = "3"`. Edition 2024 requires Rust 1.85 or later; that
-is not yet an MSRV promise. Choose and declare `rust-version` from actual
-features/dependencies, then test it and current stable in CI. Do not copy
-the prior port's 1.88 minimum by default. See the
+was not an MSRV promise during planning. M1 now declares and tests Rust 1.85
+with its actual dependencies and runs CI against 1.85.0 and stable. Future
+changes to that minimum must be deliberate; do not copy the prior port's 1.88
+minimum by default. See the
 [edition guide](https://doc.rust-lang.org/edition-guide/rust-2024/index.html).
 
 | Proposed module in `cordis-core/src/` | Responsibility |
@@ -220,6 +223,9 @@ Keep helpers private until a real second owner needs them. Expose handles
 and operations, not mutable store internals.
 
 ### Gate A: execution, ownership, cancellation
+
+M0 selected local-first Tokio/LocalSet execution and explicit started operations
+for M1. The criteria below remain implementation obligations, not parity claims.
 
 Prototype a provider, waiting consumer, and parent/root disposal on a
 single-thread executor first, matching TS. Evaluate Tokio initially and
@@ -257,6 +263,8 @@ a hidden secondary runtime or executor abstraction before a demonstrated need.
 
 ### Gate B: typed access, identity, and tracing
 
+M0 exercised typed keys, explicit bound calls, and boundary-preserving ancestry.
+
 Prototype a typed named service key, publication token, isolation label, and
 bound service call carrying definition and use contexts. `Any` with checked
 downcasts is an internal option; name/type mismatches must return errors,
@@ -275,6 +283,9 @@ metadata and explicit accessor/mixin/associated access equivalents; document
 any unsupported dynamic shapes.
 
 ### Gate C: event and config ergonomics
+
+M0 exercised owned continuations, split async prefixes, synchronous-only bail,
+and typed synchronous validation; the restrictions are recorded in [m0.md](m0.md).
 
 Use typed event argument/result contracts and opaque symbol-like keys; test
 same-name contract mismatches. Distinguish sync and async callbacks honestly:
@@ -360,9 +371,9 @@ For ambiguous scheduling, run a small TS trace fixture and equivalent Rust
 scenario, comparing normalized states, calls, publications, errors, and
 required happens-before edges. Use upstream's existing Yarn/Vitest setup,
 not a replacement runner. Exclude wall-clock timestamps, JS stack strings,
-pointer identities, and enum numbers. No JS installation or fixture runner
-is needed for this planning change; introduce it with the first ambiguity
-that needs executable proof.
+pointer identities, and enum numbers. M0's source review and Rust models do
+not execute the TS suite or establish differential parity. Introduce the first
+cross-language fixture when an ambiguity needs executable proof.
 
 Once Cargo exists, use `cargo fmt --all --check`, targeted
 `cargo test -p cordis-core --test <concern>`, and
@@ -380,10 +391,13 @@ load/reconfigure/unload example for a provider-consumer tree, with all
 representation differences and omissions documented. Passing tests copied
 from the prior port alone does not establish TS parity.
 
-Still open: executor and Send/Sync guarantees; callback/panic/cancellation
-boundaries; typed extension and trace-bound call ergonomics; dynamic
-accessor/callable/decorator equivalents; logger formatting; schema adapters;
-exact MSRV; licensing. Gates/milestones own these decisions; they are not
+M0's initial choices are local, non-Send execution, explicit bound calls, and
+owned continuations. M1 selects MIT licensing and a tested Rust 1.85 minimum;
+M2 completes root effects with sync timing and introspection, typed dispatch,
+and diagnostics. Still open: non-root lifecycle supervision, dynamic accessor/
+callable/decorator equivalents, complete traced object behavior, full logger
+formatting/naming, and schema adapters.
+Gates/milestones own these decisions; they are not
 permission to omit behavior silently. Keep [todo.md](todo.md),
 [decision.md](decision.md), and [limitation.md](limitation.md) aligned as
 each is resolved.

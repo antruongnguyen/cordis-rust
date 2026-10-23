@@ -26,14 +26,67 @@ not have. These require real design, not translation:
   Rust needs a typed strategy (type-erased storage, downcasting, or a
   trait-object registry) to recover both dynamism and type safety.
 
+## M2 current boundary
+
+The unpublished core now includes [M2 root effects, typed events, and diagnostic
+logging](m2.md) on the [M1 foundation](m1.md). There is no non-root Fiber,
+parent-owned plugin tree, service lookup/isolation/intercept API, or complete
+internal lifecycle/update event protocol yet.
+
+- Synchronous cleanup is explicit through `Disposer::sync`/`on_dispose_sync`.
+  All-sync manual chains/partial rollback complete before returning; an async
+  child remains an awaited barrier. Async setup still uses readiness/cleanup
+  futures. Labels and tree snapshots contain only metadata, not resources.
+- Recursive self/ancestor composition transfers are refused before claiming
+  their root registration, avoiding a self-wait or metadata reference cycle.
+- Listener responder and around callback roles are explicit. Bail is sync-only;
+  sync and async waterfall have separate owned continuation types. Wrong mode
+  or live name/type contracts return errors rather than silently skipping hooks.
+- Diagnostic logging now has its default bounded buffer/exporters; traced
+  service/plugin names, intercept defaults, JS printf/color formatting, and
+  cause/aggregate flattening remain M5/M6.
+- Context is non-owning: after Runtime drop, metadata/IDs are readable but
+  operations return `RuntimeDropped`. Arbitrary user-created Rc cycles are
+  not collected. Full definition-site ancestry is still M5 work.
+- Only its explicit run scope admits work. Missing/wrong hosts, nested or
+  concurrent driving, and hosting inside spawned tasks are refused. Pausing
+  a run pauses local tasks; host destruction is cancellation, not cleanup.
+- Root drain covers a snapshot, not an executor-wide shutdown barrier. Later
+  registrations require another pass; already-claimed manual cleanup has
+  its own completion handle that must be awaited separately.
+- User callback failures preserve their sources and are reported/retained;
+  diagnostic sinks do not imply full Logger parity. Panic-abort, panicking
+  destructors, and framework invariant failures cannot promise completion.
+
+## M0 boundaries selected for the initial implementation
+
+The [M0 experiments](m0.md) select local-first Tokio/LocalSet execution,
+non-Send handles/futures, explicit definition/use-bound calls, synchronous
+validation, and owned one-use continuations. They do not constitute an
+integrated framework or resolve every behavioral gap.
+
+- Started operations outlive dropped waiters only while the host executor
+  remains driven. Shutdown is not async cleanup; explicitly await teardown.
+- An async emit listener needs an explicit eager-prefix/continuation adapter.
+  Passing a native async closure does not automatically run its body at call time.
+- Bail is synchronous-only; async responses use serial. Mixed bail snapshots
+  are refused before invocation rather than mimicking JS promise-valued results.
+- Duplicate next is a move error, not an upstream-style runtime exception.
+- Name/type or cross-name shared-label type mismatches return explicit errors;
+  unchecked JS heterogeneous aliasing is not a Rust compatibility promise.
+- Same-owner lifecycle requests during cleanup are explicitly refused. Task-local
+  attribution does not propagate through arbitrary user-spawned tasks; complete
+  setup/restart/update recursion coverage remains M3 work.
+
 ## Unresolved design questions
 
 - **Async model.** `parallel` and `serial` return promises; `emit` and `bail`
   dispatch synchronously, and continuation-based `waterfall` returns whatever
   its middleware chain returns (including promises). Rust futures are lazy,
   so returning or dropping an unpolled future does not reproduce JS start
-  behavior. Executor, Send/Sync guarantees, started-operation cancellation,
-  reentrancy, and panic policy remain open; see design gates A and C in the
+  behavior. M2 integrates root effects/dispatch/diagnostics with M1 hosting;
+  non-root lifecycle and complete internal event/config behavior still
+  require integrated evidence. See design gates A and C in the
   [implementation plan](implementation-plan.md).
 - **Ownership and teardown.** Rust Drop cannot await cleanup. Parent-owned
   child Fibers and reusable-root disposal must survive the translation without
@@ -51,7 +104,7 @@ not have. These require real design, not translation:
   validation (`ValidationError`) and rejects asynchronous validators. Source
   and resolved config differ, validation is deferred while Pending, and
   invalid updates to loaded Fibers preserve the running configuration. The
-  typed validator/schema integration remains undecided; serde is not an
+  schema integration remains undecided; serde is not an
   automatic core dependency.
 - **Logging representation.** Default buffering, exporter lifetimes, caller
   naming, and error aggregation are core behavior. JS formatters, callable
@@ -63,6 +116,9 @@ not have. These require real design, not translation:
 
 - Only `cordis-core` is in scope initially; satellite packages are deferred.
 - No stability guarantees — the API will change freely until the core is proven.
+- `spikes/m0` uses separate test-only models: one dependency per lifecycle
+  Fiber, synchronous setup, and no integrated update/recovery/logger protocol.
+  Its passing tests are design evidence, not production parity coverage.
 
 This document should shrink as tensions are resolved (move resolved items into
 `docs/decision.md`) and grow as new ones surface.

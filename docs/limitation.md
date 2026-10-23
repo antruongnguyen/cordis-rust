@@ -170,6 +170,13 @@ integrated framework or resolve every behavioral gap.
 
 ## Scope limitations (current)
 
+- Approved [GitHub activity consumers](github-activity.md) are application
+  examples, not production satellites. The digest supports bounded GitHub.com
+  snapshots and programmatic updates/recovery; its CLI is one-shot. Atomic
+  replacement is not crash durability or multi-process coordination.
+  Collection and signed loopback webhook journaling remain the next approved
+  slices. Public ingress, live webhook delivery, mutations, and durable/exactly-once
+  delivery are excluded.
 - Only `cordis-core` is in scope initially; satellite packages are deferred.
 - No stability guarantees — the API will change freely until the core is proven.
 - `spikes/m0` uses separate test-only models: one dependency per lifecycle

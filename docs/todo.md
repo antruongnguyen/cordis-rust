@@ -84,9 +84,26 @@ Only after M6. Choose the next package from concrete application needs:
 
 These are bounded executed compositions, not complete upstream failure/recovery
 protocol parity. Both slices are complete; no further parity slice, satellite,
-or broader M7 is selected. Prefer a concrete consuming application's requirements
-over indefinite parity expansion or speculative satellite scaffolding. Retain
-all acceptance checks and require evidence before changing production behavior.
+or broader M7 is selected. Retain all acceptance checks and require evidence
+before changing production behavior.
+
+## Approved first consumers: GitHub activity
+
+The user selected repository activity reporting, collection, and webhook
+journaling. Keep them thin application examples, with no production core change
+unless an approved requirement demonstrates a gap. See
+[github-activity.md](github-activity.md) for the bounded scope and limitations.
+
+- [x] Snapshot-to-Markdown digest: validated bounded input, deterministic output,
+  failure-safe replacement, destination updates and explicit processor recovery.
+- [ ] `gh` collector: bounded complete snapshots, timeouts, one-shot/periodic
+  operation, reconfiguration and joined shutdown.
+- [ ] Loopback webhook journal: raw-body signature verification, repository/event
+  validation, limits, append-before-ack and graceful in-flight shutdown.
+
+Public ingress, real GitHub webhook configuration/delivery, mutations,
+notifications to other people and durable/exactly-once delivery are excluded.
+These consumers are not a generic harness or a new satellite/M7 commitment.
 
 ## Cross-cutting
 

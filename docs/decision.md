@@ -4,6 +4,30 @@ A lightweight log of decisions made for this project and the reasoning behind
 them. Newest first. This is intentionally not a heavy ADR process; it records
 *what we chose and why* so the choices aren't re-litigated silently.
 
+## 2026-10-23 — Select bounded GitHub activity consumers
+
+After workflow selection and explicit scope/dependency approval, implement a
+snapshot digest, `gh`-based collector and signed loopback webhook journal,
+in that order. Keep them executable application examples, exercising the same
+implementation from integration tests. Reuse typed plugins/injection, explicit
+updates and scoped teardown; no production core change is currently required.
+Only actually shared application contracts belong in a private example module.
+
+JSON/network/cryptographic dependencies and expanded Tokio features belong to
+dev-dependencies, not the production core. Use the installed `gh` transport and
+its existing authentication rather than add an HTTP client. Do not create
+credentials, GitHub webhooks or public ingress as a side effect of this work.
+
+The first slice validates bounded snapshots and generates deterministic escaped
+Markdown via same-directory temporary write/flush/rename. Destination replacement
+uses existing dependency convergence; Failed processors need explicit update.
+CLI execution is one-shot; live reconfiguration is a programmatic example API.
+See [github-activity.md](github-activity.md).
+
+**Why:** The user identified repository activity as useful, providing a concrete
+consumer instead of indefinite parity expansion. The bounded applications can
+demonstrate actual I/O while preserving local hosting and resource contracts.
+
 ## 2026-10-23 — Bound failure/recovery parity to three additional compositions
 
 Following explicit scope approval, extend the existing lifecycle fixtures and

@@ -12,8 +12,10 @@ The completed post-M6 lifecycle-parity slices add six executed Rust/TypeScript
 scenarios (152 Rust integration tests, 17 Rustdoc checks), including bounded
 failure/recovery evidence. See `docs/lifecycle-parity.md` for reproduction and
 evidence boundaries.
-No satellite or broader M7 scope is selected. Prefer concrete application needs
-over indefinite parity expansion; see `docs/todo.md` before selecting more work.
+The approved first-consumer scope is GitHub activity: the snapshot digest is
+implemented; bounded `gh` collection and signed loopback webhook journaling
+follow. See `docs/github-activity.md`. Application dependencies are dev-only.
+No satellite or broader M7 scope is selected; see `docs/todo.md`.
 The root Rust 2024 workspace contains only the unpublished `crates/cordis-core`
 (Rust 1.85 minimum). Use `cargo test --workspace`.
 Acceptance, logging, examples and compatibility restrictions are in `docs/m6.md`.

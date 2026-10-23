@@ -17,10 +17,13 @@ meta-framework for spatiotemporal composability.
 > Post-M6 hardening now executes six paired lifecycle scenarios
 > against the pinned TypeScript core; see [lifecycle parity](docs/lifecycle-parity.md).
 > This includes superseded/latest load failures, abandoned waits, and explicit
-> recovery. The current Rust baseline is 152 integration tests and 17 Rustdoc checks.
-> No production change or new dependency was needed for these paired slices;
-> no satellite or broader M7 scope has been selected. Prefer concrete application
-> needs over indefinite parity expansion.
+> recovery. Those slices needed no production changes or new dependencies.
+> The core/parity checkpoint has 152 integration tests and 17 Rustdoc checks.
+> An approved GitHub-activity consumer pilot now adds a snapshot digest (three
+> application tests); collection and webhook journaling follow within that scope.
+> See [GitHub activity consumers](docs/github-activity.md).
+> Application-only dependencies do not extend the production core.
+> No satellite or broader M7 scope has been selected.
 > The concept map below remains the framework target, not a shipped feature list.
 
 ## Why
@@ -112,6 +115,17 @@ and its Yarn dependencies as described in
 python3 tests/parity/run.py
 ```
 
+The first application consumer converts a bounded GitHub activity snapshot to
+Markdown:
+
+```sh
+cargo run -p cordis-core --example github_digest --locked -- \
+  crates/cordis-core/tests/fixtures/github_snapshot.json /tmp/cordis-report.md
+```
+
+See [the consumer contract](docs/github-activity.md) for the format, scoped
+ownership, reconfiguration/recovery, and output/cancellation limitations.
+
 ## M0 experiments
 
 Run the unpublished design spikes independently of the production workspace:
@@ -124,6 +138,8 @@ See [M0 results](docs/m0.md) for evidence, selected design directions, and limit
 
 ## Documentation
 
+- [`docs/github-activity.md`](docs/github-activity.md) — approved GitHub activity
+  consumers, executable commands, application contracts and acceptance.
 - [`docs/lifecycle-parity.md`](docs/lifecycle-parity.md) — six executable
   Rust/TypeScript lifecycle/failure/recovery comparisons, boundaries, and reproduction.
 - [`docs/m6.md`](docs/m6.md) — logger/error APIs, explicit injection adapters, executable example, and parity/deviation audit.

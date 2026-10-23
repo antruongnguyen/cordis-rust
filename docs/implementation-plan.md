@@ -336,6 +336,12 @@ gated recovery. Six scenarios compare 73 observations without production or
 dependency changes. Both slices are complete; further work should follow
 concrete application needs, not an automatic parity-expansion sequence.
 
+The user subsequently selected and approved bounded GitHub activity consumers:
+snapshot digest, `gh` collection and signed loopback webhook journaling.
+See [github-activity.md](github-activity.md) for application-level scope,
+implementation status and exclusions. This is not a new core milestone,
+satellite selection or approval to change core behavior speculatively.
+
 ## 5. Acceptance and validation
 
 Put integration tests under `crates/cordis-core/tests/`, named by concern

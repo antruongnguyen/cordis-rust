@@ -8,6 +8,11 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
+- First approved consuming-application slice: a Cordis-hosted GitHub snapshot
+  digest with deterministic escaped Markdown, bounded validated input,
+  atomic report replacement, provider reconfiguration and explicit recovery.
+  Three application integration tests reuse the executable. JSON dependencies
+  and filesystem/I/O features are example/test-only; production core is unchanged.
 - Approved bounded failure/recovery parity: three additional paired Rust/TS
   scenarios prove superseded-load rollback without poisoning the latest target,
   latest-failure delivery after gated rollback despite an abandoned update,

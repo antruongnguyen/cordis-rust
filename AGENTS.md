@@ -58,4 +58,14 @@ change, update the relevant doc in the same change:
   (`codegraph explore ...`) over grep/find for understanding code. Indexing is
   the maintainer's decision — do not run it unprompted.
 
+## Git conventions
+
+- Use [Conventional Commits](https://www.conventionalcommits.org/) for both
+  commit messages and pull request titles:
+  `<type>[optional scope]: <description>`.
+- Common types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`,
+  `ci`. Use the crate or area as the scope when helpful, e.g.
+  `feat(cordis-core): add Context`.
+- Keep the description in the imperative mood and lowercase.
+
 These conventions are intentionally lean and will grow as the project does.

@@ -14,11 +14,13 @@ meta-framework for spatiotemporal composability.
 > metadata, explicit initialization/method injection, type checks, and an end-to-end example.
 > This is an unpublished explicit Rust API, not transparent JavaScript
 > Proxy/decorator compatibility or a claim of unrestricted TS parity.
-> A post-M6 hardening slice now executes three paired lifecycle scenarios
+> Post-M6 hardening now executes six paired lifecycle scenarios
 > against the pinned TypeScript core; see [lifecycle parity](docs/lifecycle-parity.md).
-> The current Rust baseline is 149 integration tests and 17 Rustdoc checks.
-> Further failure/recovery parity is proposed, not implemented or approved;
-> no satellite or broader M7 scope has been selected.
+> This includes superseded/latest load failures, abandoned waits, and explicit
+> recovery. The current Rust baseline is 152 integration tests and 17 Rustdoc checks.
+> No production change or new dependency was needed for these paired slices;
+> no satellite or broader M7 scope has been selected. Prefer concrete application
+> needs over indefinite parity expansion.
 > The concept map below remains the framework target, not a shipped feature list.
 
 ## Why
@@ -122,8 +124,8 @@ See [M0 results](docs/m0.md) for evidence, selected design directions, and limit
 
 ## Documentation
 
-- [`docs/lifecycle-parity.md`](docs/lifecycle-parity.md) — three executable
-  Rust/TypeScript lifecycle comparisons, readiness boundaries, and reproduction.
+- [`docs/lifecycle-parity.md`](docs/lifecycle-parity.md) — six executable
+  Rust/TypeScript lifecycle/failure/recovery comparisons, boundaries, and reproduction.
 - [`docs/m6.md`](docs/m6.md) — logger/error APIs, explicit injection adapters, executable example, and parity/deviation audit.
 - [`docs/m5.md`](docs/m5.md) — isolation, bound calls, typed reflection/hooks, and configuration convergence.
 - [`docs/m4.md`](docs/m4.md) — typed services, checked/direct lookup, injection convergence, and exact-provider retention.

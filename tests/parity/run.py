@@ -1,4 +1,4 @@
-"""Compare three real Rust/TypeScript lifecycle traces; no third-party Python packages."""
+"""Compare six real Rust/TypeScript lifecycle traces; no third-party Python packages."""
 
 import difflib
 import os
@@ -92,7 +92,10 @@ def main():
             ],
             env=env,
         )
-        for name in ("combined", "coalesced", "removed"):
+        for name in (
+            "combined", "coalesced", "removed",
+            "superseded-failure", "latest-failure", "explicit-recovery",
+        ):
             left = (rust / f"{name}.txt").read_text()
             right = (typescript / f"{name}.txt").read_text()
             if left != right:

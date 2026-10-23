@@ -1,0 +1,13 @@
+provider 1
+apply 1 0
+fail initial
+dispose 1 0
+failed
+provider 2
+refresh consumer=Failed attempts=1
+apply 2 1
+recovery consumer=Loading waiter=pending
+waiter=Active
+diagnostics=1
+dispose 2 1
+baseline restored

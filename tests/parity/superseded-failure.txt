@@ -1,0 +1,10 @@
+apply 1
+fail 1
+rollback-gated 1
+blocked rollback waiters=pending
+dispose 1
+apply 2
+waiters=Active
+diagnostics=1
+dispose 2
+baseline restored

@@ -38,15 +38,18 @@ or explicit Rust representations. This is not unrestricted TS compatibility;
 the [M6 restriction/deviation list](m6.md#remaining-restrictions-and-safety-deviations)
 is part of the supported contract.
 
-The post-M6 [lifecycle-parity slice](lifecycle-parity.md) adds cross-language
-execution for three gated provider/config/cleanup scenarios only. It does not
-establish full upstream suite parity, transparent JavaScript compatibility,
+The post-M6 [lifecycle-parity slices](lifecycle-parity.md) add cross-language
+execution for six gated provider/config/cleanup/failure/recovery scenarios only.
+They do not establish full upstream suite parity, transparent JavaScript compatibility,
 or reproducibility of upstream's entire JavaScript dependency graph (the pin
 does not track a Yarn lockfile). No production API/behavior was changed.
 In both implementations, consumer update settlement may be Pending before
 a later provider arrival. It is not a runtime-wide readiness guarantee.
-Failure/recovery paths have Rust coverage but are not yet part of the paired
-execution; extending that evidence is proposed and still requires scope approval.
+Three failure/recovery compositions now have paired execution: obsolete/latest
+load failures with gated rollback and exactly-once diagnostics, an abandoned
+update waiter, and explicit gated recovery after ignored provider refresh.
+This is not exhaustive failure/recovery, cancellation, observer-error, or
+exporter-error protocol parity. No further slice or satellite is selected.
 
 - Services use explicit `ServiceKey<T>` access, not JS properties. M5 supports
   isolated slots with retained boundary history and explicit `BoundService`

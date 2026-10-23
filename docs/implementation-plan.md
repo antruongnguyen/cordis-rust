@@ -330,6 +330,12 @@ The first approved post-M6 slice instead hardens core evidence:
 provider/config convergence and retained-cleanup scenarios. It changes no
 production behavior and does not assign M7 or select a satellite.
 
+The subsequently approved bounded failure/recovery slice adds three paired
+scenarios for obsolete/latest failures, rollback, abandoned waits, and explicit
+gated recovery. Six scenarios compare 73 observations without production or
+dependency changes. Both slices are complete; further work should follow
+concrete application needs, not an automatic parity-expansion sequence.
+
 ## 5. Acceptance and validation
 
 Put integration tests under `crates/cordis-core/tests/`, named by concern
@@ -380,11 +386,12 @@ required happens-before edges. Use upstream's existing Yarn/Vitest setup,
 not a replacement runner. Exclude wall-clock timestamps, JS stack strings,
 pointer identities, and enum numbers. M0's source review and Rust models do
 not execute the TS suite or establish differential parity. The post-M6
-[lifecycle fixtures](lifecycle-parity.md) now provide the first bounded
-cross-language execution: shared traces for three scenarios, not general suite
-parity. They also prove that update settlement can precede a later dependency
-load; callers must distinguish Pending settlement from readiness after provider
-arrival. Only required causal edges and checkpoint summaries are compared.
+[lifecycle fixtures](lifecycle-parity.md) now provide bounded
+cross-language execution: shared traces for six lifecycle/failure/recovery
+scenarios, not general suite parity. They also prove that update settlement can
+precede a later dependency load; callers must distinguish Pending settlement
+from readiness after provider arrival. Only required causal edges and checkpoint
+summaries are compared.
 
 Once Cargo exists, use `cargo fmt --all --check`, targeted
 `cargo test -p cordis-core --test <concern>`, and

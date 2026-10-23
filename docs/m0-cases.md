@@ -265,7 +265,7 @@ source-case representation is checked.
 
 ## Post-M6 executable lifecycle evidence
 
-[Lifecycle parity](lifecycle-parity.md) adds three Rust/TypeScript paired
+[Lifecycle parity](lifecycle-parity.md) adds six Rust/TypeScript paired
 scenarios without changing these checkmarks or treating further protocols as
 complete. `tests/parity/lifecycle.spec.ts` executes against the pinned TS core;
 `crates/cordis-core/tests/lifecycle_parity.rs` uses production Rust APIs.
@@ -275,6 +275,11 @@ complete. `tests/parity/lifecycle.spec.ts` executes against the pinned TS core;
 | `combined` | `fiber.spec.ts`: update config while injected service reloads |
 | `coalesced` | `update.spec.ts`: coalesces updates during unloading; settles concurrent updates on latest config; `service-dispose.spec.ts`: retains resources during consumer cleanup |
 | `removed` | `service-dispose.spec.ts`: waits for a disposing consumer already out of the Registry; `update.spec.ts`: does not load a queued config after disposal |
+| `superseded-failure` | `update.spec.ts:121-150`: cleans up a superseded failure without failing the latest update |
+| `latest-failure` | `update.spec.ts:152-187`: rejects all waiting updates when the latest load fails; `fiber.spec.ts:156-183`: reload failure delivery and dropped failure |
+| `explicit-recovery` | `fiber.spec.ts:93-154`: failed consumer ignores dependency refresh; explicit update recovers and awaits asynchronous setup |
 
 These compositions add direct shared-trace evidence for selected cases, not
 cross-language execution of every parameter variant in this inventory.
+The six traces compare 73 observations, with exact error-source identity and
+diagnostic counts asserted separately within each language.

@@ -8,11 +8,12 @@ Instructions for agents (and humans) working in this repository.
 [Cordis](https://github.com/cordiverse/cordis) meta-framework.
 
 **Status: M0-M6 Rust core delivery and acceptance implemented.**
-The completed post-M6 lifecycle-parity slice adds three executed Rust/TypeScript
-scenarios (149 Rust integration tests, 17 Rustdoc checks). See
-`docs/lifecycle-parity.md` for reproduction and evidence boundaries.
-Failure/recovery differential coverage is proposed only; it is not approved,
-implemented, or a preassigned M7. See `docs/todo.md` before selecting more work.
+The completed post-M6 lifecycle-parity slices add six executed Rust/TypeScript
+scenarios (152 Rust integration tests, 17 Rustdoc checks), including bounded
+failure/recovery evidence. See `docs/lifecycle-parity.md` for reproduction and
+evidence boundaries.
+No satellite or broader M7 scope is selected. Prefer concrete application needs
+over indefinite parity expansion; see `docs/todo.md` before selecting more work.
 The root Rust 2024 workspace contains only the unpublished `crates/cordis-core`
 (Rust 1.85 minimum). Use `cargo test --workspace`.
 Acceptance, logging, examples and compatibility restrictions are in `docs/m6.md`.

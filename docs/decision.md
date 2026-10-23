@@ -4,6 +4,30 @@ A lightweight log of decisions made for this project and the reasoning behind
 them. Newest first. This is intentionally not a heavy ADR process; it records
 *what we chose and why* so the choices aren't re-litigated silently.
 
+## 2026-10-23 — Bound failure/recovery parity to three additional compositions
+
+Following explicit scope approval, extend the existing lifecycle fixtures and
+runner rather than introduce a new harness. Gate superseded failure rollback,
+latest failure rollback with multiple retained waiters and an abandoned update,
+and explicit asynchronous recovery after a Failed consumer ignores provider
+replacement. Both implementations produce the same 36 new observations;
+the original 37 remain unchanged. Each actual load failure has one diagnostic,
+rollback completes before waiter settlement, and original per-language error
+sources remain identifiable rather than being reduced to comparable strings.
+
+Rust uses a test-only Error adapter retaining the original Rc error as its
+source; TS checks the original Error object in waiters and logger arguments.
+Cross-language traces normalize only causal events and checkpoint outcomes,
+not error allocations, stack strings, transient scheduling, or enum ordinals.
+The comparisons demonstrate no production mismatch, so core code, APIs and
+dependencies stay unchanged.
+
+**Why:** These paths already had Rust-only coverage; the missing evidence was
+paired execution. This completes the approved bounded slice, not every upstream
+failure/recovery protocol or a preassigned M7. Prefer concrete consuming
+application needs before selecting more framework work. See
+[lifecycle-parity.md](lifecycle-parity.md) for reproduction and limits.
+
 ## 2026-10-23 — Harden lifecycle evidence before choosing a satellite
 
 The approved post-M6 scope is three executable Rust/TypeScript lifecycle

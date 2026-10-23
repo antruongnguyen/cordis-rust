@@ -8,8 +8,16 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
-- Current-checkpoint handoff documentation distinguishing completed M6 and
-  lifecycle-parity evidence from the proposed, unapproved failure/recovery slice.
+- Approved bounded failure/recovery parity: three additional paired Rust/TS
+  scenarios prove superseded-load rollback without poisoning the latest target,
+  latest-failure delivery after gated rollback despite an abandoned update,
+  and explicit gated recovery while Failed consumers ignore provider refresh.
+- Six paired scenarios now compare 73 observations (the original 37 unchanged).
+  Original per-language error sources and exactly-once diagnostics are checked;
+  the Rust baseline is 152 integration tests and 17 Rustdoc checks. Production
+  code, public APIs, dependencies, and Rust 1.85 remain unchanged.
+- Integrated-checkpoint handoff documentation distinguishing completed M6 and
+  lifecycle-parity evidence from the then-proposed failure/recovery slice.
 - Post-M6 executable lifecycle parity: three paired Rust/pinned-TypeScript
   scenarios covering provider/config updates, latest-target convergence during
   gated cleanup, and Registry-removed consumer retention/terminal disposal.

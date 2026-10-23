@@ -2,7 +2,10 @@
 mod github_activity;
 
 use cordis_core::{BoxError, Context, FiberHandle, Plugin, Runtime, ServiceKey};
-use github_activity::{Snapshot, State, atomic_write, drain, invalid, read_snapshot};
+use github_activity::{
+    MAX_SNAPSHOT_BYTES, Snapshot, State, atomic_write, drain, invalid, read_limited,
+    validate_output_parent,
+};
 use std::{io, path::PathBuf};
 
 fn markdown(text: &str) -> String {
@@ -72,13 +75,7 @@ pub(crate) fn start(root: &Context, input: PathBuf, output: PathBuf) -> Result<D
             move |ctx, output: PathBuf| {
                 let key = key.clone();
                 async move {
-                    let parent = output
-                        .parent()
-                        .filter(|p| !p.as_os_str().is_empty())
-                        .unwrap_or(std::path::Path::new("."));
-                    if !tokio::fs::metadata(parent).await?.is_dir() {
-                        return Err(invalid("output parent must be an existing directory").into());
-                    }
+                    validate_output_parent(&output).await?;
                     ctx.provide(&key, output)?;
                     Ok::<_, BoxError>(())
                 }
@@ -102,7 +99,9 @@ pub(crate) fn start(root: &Context, input: PathBuf, output: PathBuf) -> Result<D
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {}
                     Err(error) => return Err(error.into()),
                 }
-                let snapshot = read_snapshot(&input).await?;
+                let bytes =
+                    read_limited(tokio::fs::File::open(&input).await?, MAX_SNAPSHOT_BYTES).await?;
+                let snapshot: Snapshot = serde_json::from_slice(&bytes)?;
                 atomic_write(&output, render(&snapshot)?.as_bytes()).await?;
                 ctx.logger(None).info("activity report written")?;
                 Ok::<_, BoxError>(())

@@ -71,13 +71,59 @@ successful cleanup.
 golden output, invalid-input preservation, size limits, rename failure, provider
 reconfiguration, explicit recovery and restored Registry/effect baselines.
 
-## Remaining approved slices
+## Snapshot collector
 
-The collector and webhook receiver are approved but not yet implemented.
-The collector will use existing `gh` authentication, bounded issue/PR queries,
-timeouts, one-shot/periodic collection and complete snapshot publication.
-The receiver will verify raw-body HMAC-SHA256 signatures, accept only selected
-issue/PR events for the configured repository, and acknowledge after append.
+```sh
+# Uses your existing gh authentication; performs read-only GitHub requests.
+cargo run -p cordis-core --example github_collect --locked -- \
+  antruongnguyen/cordis-rust /tmp/cordis-snapshot.json
+# Repeat after a 300-second delay following each completed poll.
+cargo run -p cordis-core --example github_collect --locked -- \
+  antruongnguyen/cordis-rust /tmp/cordis-snapshot.json 300
+```
+
+`gh` must already be installed and authenticated. The application does not log
+in, create credentials or mutate GitHub. It invokes `gh issue list` and
+`gh pr list` directly without a shell, selecting GitHub.com, all states, the
+`sort:updated-desc` search, a 100-item limit, and only snapshot fields. Search
+index freshness is GitHub's, not an immediate-consistency guarantee.
+
+Each direct subprocess has a 30-second deadline, 4 MiB stdout bound and 64 KiB
+stderr bound. Timeout/oversize errors kill and await that child. No cleanup of
+arbitrary descendant processes is promised. The two sequential queries are not
+a transaction against GitHub: they observe potentially different instants.
+Only when both succeed, the combined data validates, and the serialized output
+fits 4 MiB does atomic replacement publish the new snapshot. It is a timestamped
+latest snapshot, not an accumulating history or complete repository inventory.
+The previous good snapshot survives a failed query/parse/write.
+
+Initial collection is part of the injecting poller's setup; failure leaves it
+Failed with one core diagnostic, requiring explicit update for recovery.
+Later periodic failures are printed to stderr and recorded in the core logger.
+There is no immediate retry; the next attempt waits the configured interval.
+Polling is sequential, with no overlapping requests or catch-up burst.
+
+A configuration provider owns repository/destination/interval selection.
+Programmatic provider updates wait for the consumer's in-flight poll and joined
+worker teardown before replacement. Await the consumer's readiness separately.
+As with the digest, CLI configuration is startup-only; live updates/recovery use
+the typed example handles. Ctrl-C initiates awaited root teardown, including
+during initial collection. Shutdown finishes an admitted poll (at most two query
+deadlines plus filesystem work), rather than claiming cancellation is cleanup.
+
+`tests/github_collect.rs` runs the executable's implementation with a local fake
+`gh` subprocess. Tests verify exact arguments, complete publication, failure
+preservation, timeout/reaping and output bounds. FIFO gates and a manually
+advanced Tokio clock prove in-flight work joins before reconfiguration/shutdown
+and explicit recovery follows ignored provider refresh. These subprocess
+fixtures require Unix, `/bin/sh`, `mkfifo`, `/bin/kill`, and `head`; the commands
+themselves use portable Tokio process APIs. No live GitHub request is exercised.
+
+## Remaining approved slice
+
+The webhook receiver is approved but not yet implemented. It will verify
+raw-body HMAC-SHA256 signatures, accept only selected issue/PR events for the
+configured repository, and acknowledge after append.
 Public ingress, creating GitHub webhooks, live delivery, mutations, notifications
 to other people and durable/exactly-once delivery are excluded.
 

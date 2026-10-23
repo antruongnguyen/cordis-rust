@@ -174,8 +174,11 @@ integrated framework or resolve every behavioral gap.
   examples, not production satellites. The digest supports bounded GitHub.com
   snapshots and programmatic updates/recovery; its CLI is one-shot. Atomic
   replacement is not crash durability or multi-process coordination.
-  Collection and signed loopback webhook journaling remain the next approved
-  slices. Public ingress, live webhook delivery, mutations, and durable/exactly-once
+  The collector stores a latest bounded snapshot, not complete history; its two
+  queries are not a GitHub transaction. Programmatic updates join periodic work;
+  CLI configuration is startup-only and subprocess tests require Unix utilities.
+  Signed loopback webhook journaling remains the next approved slice.
+  Public ingress, live webhook delivery, mutations, and durable/exactly-once
   delivery are excluded.
 - Only `cordis-core` is in scope initially; satellite packages are deferred.
 - No stability guarantees — the API will change freely until the core is proven.

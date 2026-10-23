@@ -96,7 +96,7 @@ unless an approved requirement demonstrates a gap. See
 
 - [x] Snapshot-to-Markdown digest: validated bounded input, deterministic output,
   failure-safe replacement, destination updates and explicit processor recovery.
-- [ ] `gh` collector: bounded complete snapshots, timeouts, one-shot/periodic
+- [x] `gh` collector: bounded complete snapshots, timeouts, one-shot/periodic
   operation, reconfiguration and joined shutdown.
 - [ ] Loopback webhook journal: raw-body signature verification, repository/event
   validation, limits, append-before-ack and graceful in-flight shutdown.

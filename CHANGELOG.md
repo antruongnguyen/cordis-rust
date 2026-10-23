@@ -8,6 +8,10 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
+- Bounded `gh` snapshot collector with one-shot/periodic modes, complete atomic
+  publication, direct-child deadlines/output limits/reaping, visible periodic
+  failures, and joined reconfiguration/shutdown. Three Unix subprocess tests
+  use FIFO gates and a controlled Tokio clock; production core remains unchanged.
 - First approved consuming-application slice: a Cordis-hosted GitHub snapshot
   digest with deterministic escaped Markdown, bounded validated input,
   atomic report replacement, provider reconfiguration and explicit recovery.

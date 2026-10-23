@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
 };
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 
 pub const MAX_SNAPSHOT_BYTES: u64 = 4 * 1024 * 1024;
 pub const ITEM_LIMIT: usize = 100;
@@ -126,19 +126,27 @@ impl Snapshot {
     }
 }
 
-pub async fn read_snapshot(path: &Path) -> Result<Snapshot, BoxError> {
+pub async fn read_limited(reader: impl AsyncRead + Unpin, limit: u64) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    tokio::fs::File::open(path)
-        .await?
-        .take(MAX_SNAPSHOT_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .await?;
-    if bytes.len() as u64 > MAX_SNAPSHOT_BYTES {
-        return Err(invalid("snapshot exceeds 4 MiB").into());
+    reader.take(limit + 1).read_to_end(&mut bytes).await?;
+    if bytes.len() as u64 > limit {
+        return Err(invalid(format!("input exceeds {limit} bytes")));
     }
-    let snapshot: Snapshot = serde_json::from_slice(&bytes)?;
-    snapshot.validate()?;
-    Ok(snapshot)
+    Ok(bytes)
+}
+
+pub async fn validate_output_parent(output: &Path) -> io::Result<()> {
+    if output.file_name().is_none() {
+        return Err(invalid("output needs a filename"));
+    }
+    let parent = output
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    if !tokio::fs::metadata(parent).await?.is_dir() {
+        return Err(invalid("output parent must be an existing directory"));
+    }
+    Ok(())
 }
 
 static TEMP_ID: AtomicU64 = AtomicU64::new(0);

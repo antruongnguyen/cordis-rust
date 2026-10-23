@@ -1,44 +1,18 @@
 //! Application-level snapshot/report acceptance, using the executable itself.
 #[path = "../examples/github_digest.rs"]
 mod digest;
+#[path = "support/github_activity.rs"]
+mod support;
 
 use cordis_core::{FiberState, Runtime};
-use std::{
-    path::PathBuf,
-    sync::atomic::{AtomicU64, Ordering},
-};
-
-static ID: AtomicU64 = AtomicU64::new(0);
-
-struct Directory(PathBuf);
-
-impl Directory {
-    fn new() -> Self {
-        let path = std::env::temp_dir().join(format!(
-            "cordis-digest-{}-{}",
-            std::process::id(),
-            ID.fetch_add(1, Ordering::Relaxed)
-        ));
-        std::fs::create_dir(&path).unwrap();
-        Self(path)
-    }
-    fn path(&self, name: &str) -> PathBuf {
-        self.0.join(name)
-    }
-}
-
-impl Drop for Directory {
-    fn drop(&mut self) {
-        std::fs::remove_dir_all(&self.0).unwrap();
-    }
-}
+use support::Directory;
 
 const INPUT: &str = include_str!("fixtures/github_snapshot.json");
 const OUTPUT: &str = include_str!("fixtures/github_digest.md");
 
 #[tokio::test(flavor = "current_thread")]
 async fn executable_writes_exact_markdown_and_preserves_output_on_invalid_input() {
-    let dir = Directory::new();
+    let dir = Directory::new("digest");
     let input = dir.path("snapshot.json");
     let output = dir.path("report.md");
     tokio::fs::write(&input, INPUT).await.unwrap();
@@ -64,7 +38,7 @@ async fn executable_writes_exact_markdown_and_preserves_output_on_invalid_input(
 #[tokio::test(flavor = "current_thread")]
 async fn destination_reconfiguration_and_explicit_recovery_use_existing_lifecycle() {
     tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        let dir = Directory::new();
+        let dir = Directory::new("digest");
         let input = dir.path("snapshot.json");
         let first = dir.path("first.md");
         let second = dir.path("second.md");
@@ -111,7 +85,7 @@ async fn destination_reconfiguration_and_explicit_recovery_use_existing_lifecycl
 
 #[tokio::test(flavor = "current_thread")]
 async fn bounded_input_and_failed_rename_do_not_publish_partial_reports() {
-    let dir = Directory::new();
+    let dir = Directory::new("digest");
     let input = dir.path("snapshot.json");
     let output = dir.path("report.md");
     tokio::fs::write(&input, vec![b' '; 4 * 1024 * 1024 + 1])

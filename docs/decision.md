@@ -24,6 +24,15 @@ uses existing dependency convergence; Failed processors need explicit update.
 CLI execution is one-shot; live reconfiguration is a programmatic example API.
 See [github-activity.md](github-activity.md).
 
+The collector uses two bounded direct `gh` processes and publishes only a
+complete validated snapshot. One injecting consumer owns and joins its periodic
+worker; in-flight collection completes before provider replacement or shutdown.
+Initial failure follows Failed/explicit-update recovery. Operational poll errors
+are visible but leave the periodic worker running for its next scheduled attempt.
+CLI configuration is startup-only; typed handles expose live updates in tests.
+Unix subprocess fixtures use FIFO gates and a controlled clock, not sleeps or
+live authenticated services.
+
 **Why:** The user identified repository activity as useful, providing a concrete
 consumer instead of indefinite parity expansion. The bounded applications can
 demonstrate actual I/O while preserving local hosting and resource contracts.

@@ -74,6 +74,21 @@ Only after M6. Choose the next package from concrete application needs:
   [lifecycle-parity.md](lifecycle-parity.md). No production fix was required.
   This does not select a satellite or define a broader M7.
 
+### Proposed next slice (requires scope approval)
+
+- [ ] Paired failure/recovery evidence using the existing lifecycle-parity
+  fixtures: superseded failure rolls back without poisoning the latest target;
+  latest failure reaches all waiters while abandoned waits do not hide
+  diagnostics; provider refresh does not retry Failed consumers, but explicit
+  update can recover through gated asynchronous setup.
+
+This is a recommendation, not approved implementation work or a completed
+upstream protocol. Rust-only tests already cover these areas; the gap is paired
+execution. Keep production changes conditional on an evidenced mismatch, avoid
+new dependencies or a generic harness, and retain all acceptance checks.
+After a bounded slice, prefer a concrete consuming application's requirements
+over indefinite parity expansion or speculative satellite scaffolding.
+
 ## Cross-cutting
 
 - [x] Initial TS-to-Rust mapping and source-backed testing strategy documented.

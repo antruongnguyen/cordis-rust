@@ -45,6 +45,8 @@ or reproducibility of upstream's entire JavaScript dependency graph (the pin
 does not track a Yarn lockfile). No production API/behavior was changed.
 In both implementations, consumer update settlement may be Pending before
 a later provider arrival. It is not a runtime-wide readiness guarantee.
+Failure/recovery paths have Rust coverage but are not yet part of the paired
+execution; extending that evidence is proposed and still requires scope approval.
 
 - Services use explicit `ServiceKey<T>` access, not JS properties. M5 supports
   isolated slots with retained boundary history and explicit `BoundService`

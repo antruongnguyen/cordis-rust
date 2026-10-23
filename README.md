@@ -16,6 +16,9 @@ meta-framework for spatiotemporal composability.
 > Proxy/decorator compatibility or a claim of unrestricted TS parity.
 > A post-M6 hardening slice now executes three paired lifecycle scenarios
 > against the pinned TypeScript core; see [lifecycle parity](docs/lifecycle-parity.md).
+> The current Rust baseline is 149 integration tests and 17 Rustdoc checks.
+> Further failure/recovery parity is proposed, not implemented or approved;
+> no satellite or broader M7 scope has been selected.
 > The concept map below remains the framework target, not a shipped feature list.
 
 ## Why

@@ -8,6 +8,8 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
+- Current-checkpoint handoff documentation distinguishing completed M6 and
+  lifecycle-parity evidence from the proposed, unapproved failure/recovery slice.
 - Post-M6 executable lifecycle parity: three paired Rust/pinned-TypeScript
   scenarios covering provider/config updates, latest-target convergence during
   gated cleanup, and Registry-removed consumer retention/terminal disposal.

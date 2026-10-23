@@ -116,3 +116,20 @@ These checks execute only the three paired scenarios and the stated original
 regressions, not every core spec or every parameter variant. All [M6 compatibility
 restrictions](m6.md#remaining-restrictions-and-safety-deviations), local hosting,
 weak ownership, cancellation and non-lease service-value contracts remain.
+
+## Proposed follow-up, not implemented
+
+The next recommendation is three paired failure/recovery scenarios, pending
+scope approval: a superseded load fails without poisoning the latest target;
+a latest-load failure reaches all waiters after rollback despite an abandoned
+wait; and Failed consumers ignore provider refresh but recover through an
+explicit update with gated setup. Existing Rust tests in `tests/updates.rs`
+cover these contracts; this document does not claim cross-language execution
+of them yet.
+
+Pinned source evidence is `packages/core/tests/update.spec.ts:121-187` and
+`packages/core/tests/fiber.spec.ts:93-184`. Reuse the existing fixtures and
+runner, compare normalized failures and causal cleanup order, preserve exact
+per-language error sources, and require one diagnostic per actual failure.
+Change production only for a demonstrated mismatch. No satellite package,
+new dependency, public API redesign, or broader M7 scope has been selected.

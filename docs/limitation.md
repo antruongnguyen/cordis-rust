@@ -38,6 +38,14 @@ or explicit Rust representations. This is not unrestricted TS compatibility;
 the [M6 restriction/deviation list](m6.md#remaining-restrictions-and-safety-deviations)
 is part of the supported contract.
 
+The post-M6 [lifecycle-parity slice](lifecycle-parity.md) adds cross-language
+execution for three gated provider/config/cleanup scenarios only. It does not
+establish full upstream suite parity, transparent JavaScript compatibility,
+or reproducibility of upstream's entire JavaScript dependency graph (the pin
+does not track a Yarn lockfile). No production API/behavior was changed.
+In both implementations, consumer update settlement may be Pending before
+a later provider arrival. It is not a runtime-wide readiness guarantee.
+
 - Services use explicit `ServiceKey<T>` access, not JS properties. M5 supports
   isolated slots with retained boundary history and explicit `BoundService`
   adapters carrying separate definition/use Contexts. An ordinary `Rc<T>`

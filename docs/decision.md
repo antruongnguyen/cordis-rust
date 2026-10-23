@@ -4,6 +4,28 @@ A lightweight log of decisions made for this project and the reasoning behind
 them. Newest first. This is intentionally not a heavy ADR process; it records
 *what we chose and why* so the choices aren't re-litigated silently.
 
+## 2026-10-23 — Harden lifecycle evidence before choosing a satellite
+
+The approved post-M6 scope is three executable Rust/TypeScript lifecycle
+comparisons, not a preassigned M7 package. Exercise concurrent provider/config
+updates, latest-target coalescing during gated cleanup, and Registry-removed
+consumer retention with terminal disposal. Keep fixtures small, use the
+existing upstream Yarn/Vitest setup at the exact source pin, and compare shared
+plain-text observations without adding Rust dependencies or a generic harness.
+
+The comparisons confirm existing behavior, so production code stays unchanged.
+Both implementations allow consumer update waiters to settle Pending while
+their provider is unavailable. Provider arrival starts a distinct lifecycle
+pass; an explicit consumer readiness wait joins that pass. A gate holds the
+latest consumer load to prove this distinction. Do not "fix" this into a
+runtime-wide convergence barrier.
+
+**Why:** No concrete application need selects timer, console logging or loader.
+M6 explicitly had source-backed rather than differential evidence. These
+three executable checks strengthen that evidence while preserving documented
+ownership/cancellation and explicit-adapter contracts. See
+[lifecycle-parity.md](lifecycle-parity.md) for the exact scope and reproduction.
+
 ## 2026-10-23 — M6 completes explicit Rust logging and acceptance
 
 Logger acquisition caches explicit name, then use-site logger intercept, then

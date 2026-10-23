@@ -325,6 +325,11 @@ logging or loader. Timer cleanup reuses effects; file formats/serialization
 belong with loader. Do not promise native shared-library hot reload as a direct
 equivalent of JS loading.
 
+The first approved post-M6 slice instead hardens core evidence:
+[executable lifecycle parity](lifecycle-parity.md) covers three paired
+provider/config convergence and retained-cleanup scenarios. It changes no
+production behavior and does not assign M7 or select a satellite.
+
 ## 5. Acceptance and validation
 
 Put integration tests under `crates/cordis-core/tests/`, named by concern
@@ -374,8 +379,12 @@ scenario, comparing normalized states, calls, publications, errors, and
 required happens-before edges. Use upstream's existing Yarn/Vitest setup,
 not a replacement runner. Exclude wall-clock timestamps, JS stack strings,
 pointer identities, and enum numbers. M0's source review and Rust models do
-not execute the TS suite or establish differential parity. Introduce the first
-cross-language fixture when an ambiguity needs executable proof.
+not execute the TS suite or establish differential parity. The post-M6
+[lifecycle fixtures](lifecycle-parity.md) now provide the first bounded
+cross-language execution: shared traces for three scenarios, not general suite
+parity. They also prove that update settlement can precede a later dependency
+load; callers must distinguish Pending settlement from readiness after provider
+arrival. Only required causal edges and checkpoint summaries are compared.
 
 Once Cargo exists, use `cargo fmt --all --check`, targeted
 `cargo test -p cordis-core --test <concern>`, and

@@ -262,3 +262,19 @@ This inventory is not a claim that arbitrary JavaScript reflection, subclass
 branding, implicit method tracing, or every possible internal-hook mutation is
 supported. Restricted mechanisms remain restricted even when their named
 source-case representation is checked.
+
+## Post-M6 executable lifecycle evidence
+
+[Lifecycle parity](lifecycle-parity.md) adds three Rust/TypeScript paired
+scenarios without changing these checkmarks or treating further protocols as
+complete. `tests/parity/lifecycle.spec.ts` executes against the pinned TS core;
+`crates/cordis-core/tests/lifecycle_parity.rs` uses production Rust APIs.
+
+| Paired scenario | Existing source cases strengthened |
+|---|---|
+| `combined` | `fiber.spec.ts`: update config while injected service reloads |
+| `coalesced` | `update.spec.ts`: coalesces updates during unloading; settles concurrent updates on latest config; `service-dispose.spec.ts`: retains resources during consumer cleanup |
+| `removed` | `service-dispose.spec.ts`: waits for a disposing consumer already out of the Registry; `update.spec.ts`: does not load a queued config after disposal |
+
+These compositions add direct shared-trace evidence for selected cases, not
+cross-language execution of every parameter variant in this inventory.

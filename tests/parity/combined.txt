@@ -1,0 +1,11 @@
+provider-open 1
+apply 1 old
+read 1 old
+provider-close 1
+provider-open 2
+apply 2 new
+update-waiters provider=Active consumer=Pending
+settled provider=Active consumer=Active
+read 2 new
+provider-close 2
+baseline restored

@@ -14,6 +14,8 @@ meta-framework for spatiotemporal composability.
 > metadata, explicit initialization/method injection, type checks, and an end-to-end example.
 > This is an unpublished explicit Rust API, not transparent JavaScript
 > Proxy/decorator compatibility or a claim of unrestricted TS parity.
+> A post-M6 hardening slice now executes three paired lifecycle scenarios
+> against the pinned TypeScript core; see [lifecycle parity](docs/lifecycle-parity.md).
 > The concept map below remains the framework target, not a shipped feature list.
 
 ## Why
@@ -96,6 +98,15 @@ See [M6 acceptance and compatibility](docs/m6.md), [M5 scope/update APIs](docs/m
 explicitly driven from Tokio; Context values do not keep their host alive.
 CI covers Rust 1.85.0 and stable, including the independent M0 experiments.
 
+The Rust lifecycle-parity fixtures run in the normal workspace suite. To also
+execute their TypeScript counterparts, prepare the isolated pinned checkout
+and its Yarn dependencies as described in
+[lifecycle parity](docs/lifecycle-parity.md), then run:
+
+```sh
+python3 tests/parity/run.py
+```
+
 ## M0 experiments
 
 Run the unpublished design spikes independently of the production workspace:
@@ -108,6 +119,8 @@ See [M0 results](docs/m0.md) for evidence, selected design directions, and limit
 
 ## Documentation
 
+- [`docs/lifecycle-parity.md`](docs/lifecycle-parity.md) — three executable
+  Rust/TypeScript lifecycle comparisons, readiness boundaries, and reproduction.
 - [`docs/m6.md`](docs/m6.md) — logger/error APIs, explicit injection adapters, executable example, and parity/deviation audit.
 - [`docs/m5.md`](docs/m5.md) — isolation, bound calls, typed reflection/hooks, and configuration convergence.
 - [`docs/m4.md`](docs/m4.md) — typed services, checked/direct lookup, injection convergence, and exact-provider retention.

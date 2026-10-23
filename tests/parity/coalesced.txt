@@ -1,0 +1,14 @@
+provider-open 1
+apply 1 old
+cleanup-gated 1 old
+blocked provider=open waiters=pending
+read 1 old
+provider-close 1
+provider-open 3
+apply 3 new
+latest-load consumer=Loading ready=pending
+update-waiters provider=Active consumer=Pending
+settled provider=Active consumer=Active
+read 3 new
+provider-close 3
+baseline restored

@@ -8,6 +8,13 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
+- Post-M6 executable lifecycle parity: three paired Rust/pinned-TypeScript
+  scenarios covering provider/config updates, latest-target convergence during
+  gated cleanup, and Registry-removed consumer retention/terminal disposal.
+- Shared normalized trace expectations, a bounded pin-checking comparison
+  command using upstream Yarn/Vitest, and explicit Pending-versus-readiness
+  evidence. Three new Rust tests bring the workspace to 149 integration tests;
+  17 Rustdoc checks, production behavior, dependencies and Rust 1.85 stay unchanged.
 - M6 logger intercept/name/verbosity precedence, nested service attribution,
   normalized names, inspectable weak Fiber metadata, explicit cause/aggregate
   error values, exact error identities, bounded per-line formatting, and ANSI palettes.

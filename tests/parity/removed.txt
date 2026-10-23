@@ -1,0 +1,12 @@
+provider-open 1
+apply 1 old
+cleanup-gated 1 old
+registry consumer=removed
+blocked provider=open waiters=pending
+read 1 old
+provider-close 1
+provider-open 3
+update-waiters provider=Active consumer=Disposed
+settled provider=Active consumer=Disposed
+provider-close 3
+baseline restored

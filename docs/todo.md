@@ -65,6 +65,15 @@ Only after M6. Choose the next package from concrete application needs:
 - [ ] `cordis-loader` — plugin loading/configuration, not assumed native hot reload.
 - [ ] Others as they prove necessary (`group`, `hmr`, `include`, `create`).
 
+## Post-M6 core hardening
+
+- [x] Approved focused lifecycle-parity slice: execute three equivalent
+  Rust/TypeScript scenarios for concurrent provider/config updates, replacement
+  coalescing during gated cleanup, and Registry-removed consumer disposal.
+  Shared traces and readiness assertions are documented in
+  [lifecycle-parity.md](lifecycle-parity.md). No production fix was required.
+  This does not select a satellite or define a broader M7.
+
 ## Cross-cutting
 
 - [x] Initial TS-to-Rust mapping and source-backed testing strategy documented.

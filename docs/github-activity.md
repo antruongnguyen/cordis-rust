@@ -220,3 +220,29 @@ the explicit MSRV/stable selection and complete acceptance matrix in
 [m6.md](m6.md#verification), and the six paired scenarios in
 [lifecycle-parity.md](lifecycle-parity.md). Application acceptance uses synthetic
 files and local peers, not authenticated live GitHub requests.
+
+Verified on 2026-10-23, using explicit PATH/RUSTC/RUSTDOC selection and separate
+`target/msrv` / `target/stable` artifacts:
+
+| Check | Result |
+|---|---|
+| Actual Rust/Cargo/rustdoc 1.85.0, Clippy 0.1.85 | All-target workspace check; 164 integration tests and 17 Rustdoc checks; strict workspace/M0 Clippy; warnings-denied public docs; all examples built |
+| Stable Rust/Cargo/rustdoc 1.97.1, Clippy 0.1.97 | Same checks plus workspace/M0 formatting |
+| Independent M0, both compilers | 20 integration tests and one Rustdoc check |
+| Executables, both compilers | Original lifecycle example; exact digest CLI output; fake-gh one-shot and periodic collector; signed local webhook replay, rejected bad signature, and successful Ctrl-C teardown |
+| Secret handling | Missing/non-Unicode environment errors are redacted; CLI rejection never prints the supplied secret value |
+| Existing paired parity | Three consecutive runs: six TS and six Rust scenarios / 73 matching observations, with fixture type-check and strict ESLint; original fixtures/expectations unchanged |
+| Original upstream regressions | 61 tests in `core/update core/service-dispose core/fiber` pass |
+| Negative parity check | A corrupted expectation in an isolated temporary copy is rejected; temporary upstream fixture is removed on failure |
+
+The first full run exposed a timeout-fixture startup assumption: a child can
+hit its real query deadline before the fixture writes a PID file. The collector
+now includes its actual spawned child ID in timeout diagnostics, and the reaping
+check uses that ID. The full two-toolchain matrix subsequently passed without
+assuming fixture startup time. No sleeps or shared-cache deletion were added.
+
+Normal production dependencies remain only futures-util and Tokio; JSON,
+HTTP/crypto crates and expanded Tokio features are dev-only. No files under
+`crates/cordis-core/src/` or parity fixtures changed. Both isolated references
+retain their original pins and tracked contents. These application checks do
+not add live GitHub evidence or broaden the established TS parity boundary.

@@ -95,6 +95,15 @@ async fn ready(app: &webhook::Webhook) -> SocketAddr {
 
 #[test]
 fn signature_verification_matches_rfc4231_and_rejects_modified_or_malformed_input() {
+    assert_eq!(
+        webhook::parse_secret(Ok(String::from_utf8(SECRET.to_vec()).unwrap())).unwrap(),
+        SECRET
+    );
+    assert!(webhook::parse_secret(Err(std::env::VarError::NotPresent)).is_err());
+    let private_value = "synthetic-value-that-must-not-appear-in-errors";
+    let error = webhook::parse_secret(Err(std::env::VarError::NotUnicode(private_value.into())))
+        .unwrap_err();
+    assert!(!format!("{error:?}").contains(private_value));
     let signature = "sha256=b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7";
     assert!(webhook::verified(&[0x0b; 20], signature, b"Hi There"));
     assert!(!webhook::verified(&[0x0b; 20], signature, b"Hi There!"));

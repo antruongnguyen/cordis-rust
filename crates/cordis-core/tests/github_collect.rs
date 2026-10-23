@@ -123,7 +123,6 @@ async fn executable_collects_complete_snapshot_and_preserves_last_good_on_query_
 #[tokio::test(flavor = "current_thread")]
 async fn timed_out_and_oversized_subprocesses_are_reaped_without_publishing() {
     let dir = Directory::new("collector-timeout");
-    let pid = dir.path("pid");
     let blocked = dir.path("blocked");
     assert!(
         std::process::Command::new("mkfifo")
@@ -134,20 +133,20 @@ async fn timed_out_and_oversized_subprocesses_are_reaped_without_publishing() {
     );
     let mut config = config(
         &dir,
-        &format!(
-            "echo $$ > {}; read -r answer < {}",
-            quoted(pid.to_str().unwrap()),
-            quoted(blocked.to_str().unwrap())
-        ),
+        &format!("read -r answer < {}", quoted(blocked.to_str().unwrap())),
         ":",
     );
     config.timeout = Duration::from_secs(1);
     let error = collector::collect_once(&config).await.unwrap_err();
     assert!(error.to_string().contains("timed out"), "{error}");
-    let pid: u32 = tokio::fs::read_to_string(pid)
-        .await
+    let text = error.to_string();
+    let pid: u32 = text
+        .split_once(" pid ")
         .unwrap()
-        .trim()
+        .1
+        .split_whitespace()
+        .next()
+        .unwrap()
         .parse()
         .unwrap();
     let running = std::process::Command::new("/bin/kill")

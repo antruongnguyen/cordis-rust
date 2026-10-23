@@ -109,6 +109,11 @@ This project does not yet follow semantic versioning — the API is unstable.
   `docs/{todo,decision,limitation}.md`.
 
 ### Fixed
+- Collector timeout/reaping tests use the actual spawned child ID, not a PID
+  file whose creation can lose a startup/deadline race under load. Missing or
+  non-Unicode webhook-secret errors never include the supplied secret value.
+- All three application consumers pass actual Rust 1.85.0/stable acceptance,
+  offline executable checks and the unchanged paired-parity matrix.
 - Service availability hooks notify current publications exactly once per
   transition, without treating retired bindings or an already-inactive owner's
   journal pause as a new availability change.

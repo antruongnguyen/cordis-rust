@@ -154,3 +154,8 @@ settlement boundary or make update/provider waits runtime-wide convergence
 barriers. No satellite, public API redesign, new dependency, or broader M7 is
 selected. Prefer concrete consuming application needs over indefinite parity
 expansion, and change production only for evidenced mismatches.
+
+The subsequently approved [GitHub activity consumers](github-activity.md) add
+12 Unix application tests (164 workspace integration tests total). Their
+acceptance reruns these six scenarios / 73 observations unchanged. Application
+file/process/HTTP evidence does not expand the differential-parity claim above.

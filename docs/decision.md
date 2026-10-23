@@ -42,6 +42,13 @@ injected file writer. Success means append/flush before 204, not crash durabilit
 Writer errors poison the sink and reject later requests until reconfiguration.
 Signed local replay is evidence only for the receiver, not real GitHub delivery.
 
+Full acceptance checks actual spawned child identity rather than assuming a
+fixture can write a PID file before the query deadline under parallel load.
+Environment-secret errors deliberately discard the supplied value instead of
+forwarding `VarError::NotUnicode`, whose Debug representation would expose it.
+The completed consumer acceptance retains both compiler matrices and the
+unchanged six paired scenarios; it adds no live GitHub or broader parity claim.
+
 **Why:** The user identified repository activity as useful, providing a concrete
 consumer instead of indefinite parity expansion. The bounded applications can
 demonstrate actual I/O while preserving local hosting and resource contracts.

@@ -100,7 +100,7 @@ unless an approved requirement demonstrates a gap. See
   operation, reconfiguration and joined shutdown.
 - [x] Loopback webhook journal: raw-body signature verification, repository/event
   validation, limits, append-before-ack and graceful in-flight shutdown.
-- [ ] Final consumer acceptance: explicitly selected Rust 1.85.0/stable matrices,
+- [x] Final consumer acceptance: explicitly selected Rust 1.85.0/stable matrices,
   the six paired scenarios, and offline executable checks.
 
 Public ingress, real GitHub webhook configuration/delivery, mutations,

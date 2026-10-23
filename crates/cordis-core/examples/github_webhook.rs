@@ -38,6 +38,12 @@ use tokio::{
 pub(crate) const BODY_LIMIT: usize = 256 * 1024;
 pub(crate) const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
+pub(crate) fn parse_secret(value: Result<String, std::env::VarError>) -> io::Result<Vec<u8>> {
+    value.map(String::into_bytes).map_err(|_| {
+        invalid("CORDIS_GITHUB_WEBHOOK_SECRET must be set to a UTF-8 secret (32+ bytes)")
+    })
+}
+
 #[derive(Clone)]
 pub(crate) struct Config {
     pub(crate) repository: String,
@@ -469,7 +475,7 @@ fn main() -> Result<(), BoxError> {
         Some(port) => port.parse()?,
         None => 3000,
     };
-    let secret = std::env::var("CORDIS_GITHUB_WEBHOOK_SECRET")?.into_bytes();
+    let secret = parse_secret(std::env::var("CORDIS_GITHUB_WEBHOOK_SECRET"))?;
     let config = Config {
         repository: args[0].clone(),
         bind: ([127, 0, 0, 1], port).into(),

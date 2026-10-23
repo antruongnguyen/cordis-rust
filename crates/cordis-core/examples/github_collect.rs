@@ -72,6 +72,9 @@ async fn query(config: &Config, kind: &str) -> Result<Vec<Item>, BoxError> {
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()?;
+    let pid = child
+        .id()
+        .ok_or_else(|| invalid("missing gh child identity"))?;
     let stdout = child
         .stdout
         .take()
@@ -96,7 +99,7 @@ async fn query(config: &Config, kind: &str) -> Result<Vec<Item>, BoxError> {
                 Ok(Err(error)) => error.into(),
                 Err(error) => std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
-                    format!("gh {kind} query timed out: {error}"),
+                    format!("gh {kind} query pid {pid} timed out: {error}"),
                 )
                 .into(),
                 Ok(Ok(_)) => unreachable!("successful query handled above"),

@@ -1,7 +1,8 @@
 # Cordis Rust implementation plan
 
-Status: M2's root effect/event/diagnostic contract is complete, including sync
-cleanup and effect introspection. See [M2 scope](m2.md), [M1 contracts](m1.md), [M0 results](m0.md),
+Status: M3's base plugin/Registry lifecycle is implemented, extending scoped
+effects/events/diagnostics. See [M3 scope](m3.md), [M2 scope](m2.md),
+[M1 contracts](m1.md), [M0 results](m0.md),
 and the [case checklist](m0-cases.md).
 Target the TypeScript core using **Rust edition 2024**. A newer stable edition
 may be adopted deliberately later; an older edition is out of scope.
@@ -393,10 +394,11 @@ from the prior port alone does not establish TS parity.
 
 M0's initial choices are local, non-Send execution, explicit bound calls, and
 owned continuations. M1 selects MIT licensing and a tested Rust 1.85 minimum;
-M2 completes root effects with sync timing and introspection, typed dispatch,
-and diagnostics. Still open: non-root lifecycle supervision, dynamic accessor/
-callable/decorator equivalents, complete traced object behavior, full logger
-formatting/naming, and schema adapters.
+M2 completes root effects with sync timing/introspection, typed dispatch, and
+diagnostics. M3 adds supervised plugin lifecycle and scoped resource ownership.
+Still open: service convergence, config updates/recovery, internal hook protocols,
+dynamic accessor/callable/decorator equivalents, complete traced object behavior,
+full logger formatting/naming, and schema adapters.
 Gates/milestones own these decisions; they are not
 permission to omit behavior silently. Keep [todo.md](todo.md),
 [decision.md](decision.md), and [limitation.md](limitation.md) aligned as

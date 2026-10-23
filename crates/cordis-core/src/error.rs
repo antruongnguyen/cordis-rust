@@ -38,10 +38,12 @@ pub enum AdmissionError {
     HostNotRunning,
     /// The request was made inside another runtime's run scope.
     WrongHost,
-    /// A root drain was requested from that root's effect setup/cleanup callback.
+    /// A self/ancestor lifecycle wait or drain was requested from setup/cleanup.
     ReentrantDrain,
     /// The registration identity space is exhausted.
     IdentityExhausted,
+    /// The selected Fiber is disposed or its ownership has ended.
+    InactiveContext,
 }
 
 impl fmt::Display for AdmissionError {
@@ -53,9 +55,10 @@ impl fmt::Display for AdmissionError {
             }
             Self::WrongHost => "the request belongs to a different Cordis host",
             Self::ReentrantDrain => {
-                "cannot drain the root from its own effect setup/cleanup callback"
+                "cannot wait for an active setup/cleanup owner's lifecycle or drain"
             }
             Self::IdentityExhausted => "cleanup registration identity space exhausted",
+            Self::InactiveContext => "cannot create work on a disposed Fiber context",
         })
     }
 }

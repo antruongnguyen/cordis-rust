@@ -1,12 +1,12 @@
 use crate::{
-    AdmissionError, CleanupFailure, CleanupReport, Completion, CompletionError, Context, FiberId,
-    HostError, RuntimeId,
-    effect::{Cleanup, Receiver, StartedCleanup, begin},
+    AdmissionError, CleanupFailure, CleanupReport, Completion, CompletionError, Context, HostError,
+    RuntimeId,
+    effect::{Cleanup, StartedCleanup, begin},
+    owner::Owner,
 };
 use futures_util::future::join_all;
 use std::{
     cell::{Cell, RefCell},
-    collections::BTreeMap,
     future::Future,
     panic::AssertUnwindSafe,
     rc::{Rc, Weak},
@@ -15,30 +15,20 @@ use tokio::{sync::watch, task::LocalSet};
 
 tokio::task_local! {
     static HOST: RuntimeId;
-    static CLEANING: RuntimeId;
 }
 
 pub(crate) struct State {
     pub(crate) id: RuntimeId,
-    pub(crate) root_id: FiberId,
+    pub(crate) root: Rc<Owner>,
     pub(crate) next: Cell<u64>,
-    pub(crate) cleanups: RefCell<BTreeMap<u64, Cleanup>>,
-    pub(crate) draining: RefCell<Option<Receiver>>,
     host: Weak<LocalSet>,
     failures: RefCell<Vec<CleanupFailure>>,
     pub(crate) events: crate::events::EventStore,
     pub(crate) logger: crate::logger::LogStore,
+    pub(crate) registry: crate::plugin::RegistryStore,
 }
 
 impl State {
-    pub(crate) fn setup_scope<T>(&self, callback: impl FnOnce() -> T) -> T {
-        CLEANING.sync_scope(self.id.clone(), callback)
-    }
-
-    pub(crate) async fn cleanup_scope<T>(&self, future: impl Future<Output = T>) -> T {
-        CLEANING.scope(self.id.clone(), future).await
-    }
-
     pub(crate) fn spawn<F>(&self, host: &LocalSet, future: F) -> tokio::task::JoinHandle<F::Output>
     where
         F: Future + 'static,
@@ -48,6 +38,10 @@ impl State {
     }
 
     pub(crate) fn report(&self, failure: CleanupFailure) {
+        self.report_for(&self.root, failure);
+    }
+
+    pub(crate) fn report_for(&self, owner: &Owner, failure: CleanupFailure) {
         let diagnostic = std::panic::catch_unwind(AssertUnwindSafe(|| failure.to_string()));
         let text = match diagnostic {
             Ok(text) => text,
@@ -61,7 +55,7 @@ impl State {
             "cordis".into(),
             crate::Level::Error,
             text,
-            self.root_id.clone(),
+            owner.id.clone(),
             Some(failure),
             crate::Level::Info,
         );
@@ -86,23 +80,16 @@ impl State {
         }
     }
 
-    pub(crate) fn assert_not_cleaning(&self) -> Result<(), AdmissionError> {
-        if CLEANING.try_with(|id| id == &self.id).unwrap_or(false) {
-            Err(AdmissionError::ReentrantDrain)
-        } else {
-            Ok(())
-        }
-    }
-
     pub(crate) fn start(
         self: &Rc<Self>,
         host: &LocalSet,
+        journal: Rc<Owner>,
         callbacks: Vec<Cleanup>,
         root_drain: bool,
     ) -> Completion {
         let (sender, receiver) = watch::channel(None);
         if root_drain {
-            *self.draining.borrow_mut() = Some(receiver.clone());
+            *journal.draining.borrow_mut() = Some(receiver.clone());
         }
         let attempted = callbacks.len();
         let (callbacks, started) = if root_drain {
@@ -110,7 +97,7 @@ impl State {
         } else {
             let started: Vec<_> = callbacks
                 .into_iter()
-                .map(|callback| self.setup_scope(|| begin(callback)))
+                .map(|callback| journal.setup_scope(|| begin(callback)))
                 .collect();
             (Vec::new(), Some(started))
         };
@@ -134,23 +121,23 @@ impl State {
                 failures,
             };
             for failure in report.failures() {
-                self.report(failure.clone());
+                self.report_for(&journal, failure.clone());
             }
             sender.send_replace(Some(Ok(report)));
             return Completion::waiting(receiver);
         }
-        let owner = self.clone();
+        let worker_owner = journal.clone();
         let task = self.spawn(host, async move {
             let started = started.unwrap_or_else(|| {
                 callbacks
                     .into_iter()
-                    .map(|callback| owner.setup_scope(|| begin(callback)))
+                    .map(|callback| worker_owner.setup_scope(|| begin(callback)))
                     .collect()
             });
             let failures = join_all(
                 started
                     .into_iter()
-                    .map(|callback| owner.cleanup_scope(callback.finish())),
+                    .map(|callback| worker_owner.cleanup_scope(callback.finish())),
             )
             .await
             .into_iter()
@@ -166,7 +153,7 @@ impl State {
             let outcome = match task.await {
                 Ok(report) => {
                     for failure in report.failures() {
-                        state.report(failure.clone());
+                        state.report_for(&journal, failure.clone());
                     }
                     Ok(report)
                 }
@@ -180,7 +167,7 @@ impl State {
                 }
             };
             if root_drain {
-                state.draining.borrow_mut().take();
+                journal.draining.borrow_mut().take();
             }
             sender.send_replace(Some(outcome));
         });
@@ -215,14 +202,13 @@ impl Runtime {
         let host = Rc::new(LocalSet::new());
         let state = Rc::new(State {
             id: RuntimeId::new(),
-            root_id: FiberId::new(),
+            root: Owner::new("root".into()),
             next: Cell::new(0),
-            cleanups: RefCell::new(BTreeMap::new()),
-            draining: RefCell::new(None),
             host: Rc::downgrade(&host),
             failures: RefCell::new(Vec::new()),
             events: crate::events::EventStore::default(),
             logger: crate::logger::LogStore::default(),
+            registry: crate::plugin::RegistryStore::default(),
         });
         Self {
             state,

@@ -291,18 +291,25 @@ impl Future for Completion {
     }
 }
 
-/// Exact manual control of one root cleanup registration; Drop is inert.
+/// Exact manual control of one Fiber-owned cleanup registration; Drop is inert.
 pub struct Effect {
     pub(crate) runtime: Weak<State>,
+    pub(crate) owner: Weak<crate::owner::Owner>,
     pub(crate) id: u64,
     pub(crate) setup: Option<crate::setup::SetupState>,
     pub(crate) node: Rc<EffectNode>,
 }
 
 impl Effect {
-    pub(crate) fn new(runtime: Weak<State>, id: u64, node: Rc<EffectNode>) -> Self {
+    pub(crate) fn new(
+        runtime: Weak<State>,
+        owner: Weak<crate::owner::Owner>,
+        id: u64,
+        node: Rc<EffectNode>,
+    ) -> Self {
         Self {
             runtime,
+            owner,
             id,
             setup: None,
             node,
@@ -331,21 +338,25 @@ impl Effect {
     /// prefix also starts now. If an automatic drain already claimed this
     /// registration, report zero attempts instead. That result does not
     /// wait for a different operation's work. Admission errors do not unregister
-    /// the callback: it remains root-owned for a later drain.
+    /// the callback: it remains owned by its Fiber for a later drain.
     pub fn dispose(self) -> Result<Completion, AdmissionError> {
         let state = self
             .runtime
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
         let host = state.admit()?;
-        let callback = state.cleanups.borrow_mut().remove(&self.id);
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(AdmissionError::InactiveContext)?;
+        let callback = owner.cleanups.borrow_mut().remove(&self.id);
         if callback.is_some() {
             if let Some(setup) = &self.setup {
                 setup.stop();
             }
         }
         Ok(match callback {
-            Some(callback) => state.start(&host, vec![callback], false),
+            Some(callback) => state.start(&host, owner, vec![callback], false),
             None => Completion::empty(),
         })
     }

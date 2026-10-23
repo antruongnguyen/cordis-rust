@@ -26,12 +26,24 @@ not have. These require real design, not translation:
   Rust needs a typed strategy (type-erased storage, downcasting, or a
   trait-object registry) to recover both dynamism and type safety.
 
-## M2 current boundary
+## M3 current boundary
 
-The unpublished core now includes [M2 root effects, typed events, and diagnostic
-logging](m2.md) on the [M1 foundation](m1.md). There is no non-root Fiber,
-parent-owned plugin tree, service lookup/isolation/intercept API, or complete
-internal lifecycle/update event protocol yet.
+The unpublished core includes [M3 base plugin lifecycle/Registry](m3.md) and
+Fiber-scoped [effects, typed events, and diagnostics](m2.md) on the [M1 host](m1.md).
+There is no service lookup/injection/convergence or isolation/intercept API,
+configuration update/recovery, or complete internal lifecycle/update hook protocol.
+
+- Plugin declarations are immutable and reusable with explicit allocation
+  identity; JS function/object/constructor behavior is adapted to typed callbacks.
+  Apply registers effects rather than implicitly interpreting arbitrary return
+  shapes. Dynamic callback metadata mutation and automatic Service.init are
+  not implemented.
+- Pending is an initial vocabulary position; dependency-driven Pending/Active
+  transitions need M4. State snapshots are not internal/status event evidence.
+  Failed Fibers stay resident until disposal; config-update recovery needs M5.
+- Restart/dispose self-waits and owning-ancestor waits are refused from directly
+  attributed callbacks. User-spawned task graphs do not gain that attribution
+  or general deadlock detection automatically.
 
 - Synchronous cleanup is explicit through `Disposer::sync`/`on_dispose_sync`.
   All-sync manual chains/partial rollback complete before returning; an async
@@ -42,12 +54,15 @@ internal lifecycle/update event protocol yet.
 - Listener responder and around callback roles are explicit. Bail is sync-only;
   sync and async waterfall have separate owned continuation types. Wrong mode
   or live name/type contracts return errors rather than silently skipping hooks.
-- Diagnostic logging now has its default bounded buffer/exporters; traced
-  service/plugin names, intercept defaults, JS printf/color formatting, and
+- Diagnostic logging has its bounded buffer/exporters, raw Fiber names, and
+  owner IDs. Traced service names, plugin-name normalization, intercept defaults,
+  JS printf/color formatting, and
   cause/aggregate flattening remain M5/M6.
 - Context is non-owning: after Runtime drop, metadata/IDs are readable but
   operations return `RuntimeDropped`. Arbitrary user-created Rc cycles are
-  not collected. Full definition-site ancestry is still M5 work.
+  not collected. Retained Fiber handles can retain source/metadata and pending
+  cleanup captures until dropped; host destruction does not run async cleanup.
+  Full definition-site ancestry is still M5 work.
 - Only its explicit run scope admits work. Missing/wrong hosts, nested or
   concurrent driving, and hosting inside spawned tasks are refused. Pausing
   a run pauses local tasks; host destruction is cancellation, not cleanup.
@@ -75,8 +90,8 @@ integrated framework or resolve every behavioral gap.
 - Name/type or cross-name shared-label type mismatches return explicit errors;
   unchecked JS heterogeneous aliasing is not a Rust compatibility promise.
 - Same-owner lifecycle requests during cleanup are explicitly refused. Task-local
-  attribution does not propagate through arbitrary user-spawned tasks; complete
-  setup/restart/update recursion coverage remains M3 work.
+  attribution does not propagate through arbitrary user-spawned tasks. M3 covers
+  setup/restart/dispose and owning-ancestor refusal; update is still M5 work.
 
 ## Unresolved design questions
 
@@ -84,14 +99,14 @@ integrated framework or resolve every behavioral gap.
   dispatch synchronously, and continuation-based `waterfall` returns whatever
   its middleware chain returns (including promises). Rust futures are lazy,
   so returning or dropping an unpolled future does not reproduce JS start
-  behavior. M2 integrates root effects/dispatch/diagnostics with M1 hosting;
-  non-root lifecycle and complete internal event/config behavior still
-  require integrated evidence. See design gates A and C in the
+  behavior. M3 integrates base non-root lifecycle and per-Fiber ownership;
+  complete internal event/config behavior and service convergence remain future
+  work. See design gates A and C in the
   [implementation plan](implementation-plan.md).
-- **Ownership and teardown.** Rust Drop cannot await cleanup. Parent-owned
-  child Fibers and reusable-root disposal must survive the translation without
-  strong-reference cycles. Exact provider bindings must remain usable through
-  dependent cleanup, even after consumers leave the Registry. Top-level
+- **Ownership and teardown.** Rust Drop cannot await cleanup. M3 implements
+  parent-owned children and reusable-root disposal with weak backreferences.
+  M4 must keep exact provider bindings usable through dependent cleanup, even
+  after consumers leave the Registry. Top-level
   cleanup is concurrent upstream; a universal sequential LIFO drain is not
   equivalent. These are requirements, not accepted omissions.
 - **Definition site versus use site.** Typed shared service pointers alone
@@ -103,8 +118,9 @@ integrated framework or resolve every behavioral gap.
 - **Config validation.** TS Cordis uses Standard Schema for plugin config
   validation (`ValidationError`) and rejects asynchronous validators. Source
   and resolved config differ, validation is deferred while Pending, and
-  invalid updates to loaded Fibers preserve the running configuration. The
-  schema integration remains undecided; serde is not an
+  invalid updates to loaded Fibers preserve the running configuration. M3 has
+  synchronous typed validation/source separation but no update or dependency
+  deferral API yet. Schema integration remains undecided; serde is not an
   automatic core dependency.
 - **Logging representation.** Default buffering, exporter lifetimes, caller
   naming, and error aggregation are core behavior. JS formatters, callable

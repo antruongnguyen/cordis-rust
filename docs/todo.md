@@ -32,11 +32,14 @@ and behavioral tests, not just public type declarations.
 - [x] M2 (root scope): Effect setup/rollback/composition, synchronous disposal,
   labels/tree introspection, five typed dispatch modes, listener snapshot
   filtering/cleanup, and core diagnostics. See [m2.md](m2.md) for contracts and
-  explicit Rust equivalents. Plugin-owned disposal is tracked under M3; the
+  explicit Rust equivalents. M3 now integrates plugin-owned disposal; the
   special internal-update listener protocol is tracked under M5. These are not
   claims of complete plugin/event/service suite parity.
-- [ ] M3: Registry identity/grouping, base Fiber states, config validation,
-  restart/disposal, parent-owned child/listener cleanup, and reusable-root disposal.
+- [x] M3 (base lifecycle): Registry identity/grouping, observable Fiber states,
+  typed source/resolved validation, supervised restart/disposal, parent-owned
+  child/listener/exporter cleanup, and reusable-root disposal; see [m3.md](m3.md).
+  Dependency-driven Pending is M4; config updates/recovery and internal status/
+  update hook protocols remain M5. Complete upstream suite parity is not claimed.
 - [ ] M4: Reflect/Service typed publication and lookup, injection resolution,
   Pending/Active convergence, committed snapshots, and exact-provider retention
   through consumer cleanup (including consumers removed from the Registry).

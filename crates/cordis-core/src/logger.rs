@@ -30,13 +30,13 @@ pub struct LogRecord {
     pub sequence: u64,
     /// Wall-clock creation time; no monotonic timing guarantee.
     pub timestamp: SystemTime,
-    /// Explicit channel name (root by default until plugin/service naming exists).
+    /// Explicit channel name or the selected Fiber's diagnostic name.
     pub name: String,
     /// Severity of the message.
     pub level: Level,
     /// Rust-formatted message; JS printf syntax is not interpreted.
     pub message: String,
-    /// Root Fiber attribution without retaining the runtime.
+    /// Selected Fiber attribution without retaining the runtime or lifecycle.
     pub fiber: FiberId,
     /// Original source for an automatic callback diagnostic.
     pub failure: Option<CleanupFailure>,
@@ -213,7 +213,7 @@ impl Logger {
     }
 }
 
-/// A root-owned exporter with exact synchronous manual removal and inert Drop.
+/// A Fiber-owned exporter with exact synchronous manual removal and inert Drop.
 pub struct ExporterRegistration {
     effect: Effect,
     id: u64,
@@ -227,8 +227,9 @@ impl ExporterRegistration {
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
         state.admit()?;
+        let owner = self.effect.owner.upgrade();
         let found = state.logger.remove(self.id);
-        let cleanup = state.cleanups.borrow_mut().remove(&self.effect.id);
+        let cleanup = owner.and_then(|owner| owner.cleanups.borrow_mut().remove(&self.effect.id));
         drop(cleanup);
         Ok(found)
     }
@@ -239,13 +240,14 @@ impl ExporterRegistration {
 }
 
 impl Context {
-    /// Acquire an explicitly named logger. None selects root in M2; traced
-    /// plugin/service names and intercept-derived defaults are M5/M6 work.
+    /// Acquire an explicitly named logger. None selects the current Fiber's
+    /// diagnostic name; service tracing, name normalization and intercepts are
+    /// M5/M6 work.
     pub fn logger(&self, name: Option<&str>) -> Logger {
         Logger {
             state: self.runtime.clone(),
             fiber: self.fiber_id().clone(),
-            name: name.unwrap_or("root").to_owned(),
+            name: name.unwrap_or(self.name()).to_owned(),
             level: Level::Info,
         }
     }
@@ -271,6 +273,7 @@ impl Context {
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
         state.admit()?;
+        self.owner()?.admit()?;
         let id = state
             .next
             .get()

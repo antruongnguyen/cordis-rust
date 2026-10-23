@@ -233,12 +233,13 @@ impl ListenerRegistration {
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
         state.admit()?;
+        let owner = self.effect.owner.upgrade();
         let removed = remove(&state, &self.key, self.id);
-        let cleanup = state.cleanups.borrow_mut().remove(&self.effect.id);
+        let cleanup = owner.and_then(|owner| owner.cleanups.borrow_mut().remove(&self.effect.id));
         drop(cleanup);
         Ok(removed)
     }
-    /// Transfer root-owned cleanup into a composed effect with Disposer::from_effect.
+    /// Transfer this Fiber's cleanup into a composed effect with Disposer::from_effect.
     pub fn into_effect(self) -> Effect {
         self.effect
     }
@@ -473,6 +474,7 @@ impl Context {
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
         state.admit()?;
+        self.owner()?.admit()?;
         let existing = state.events.0.borrow().get(&event.key).cloned();
         let bucket: Rc<dyn ErasedBucket> =
             existing.unwrap_or_else(|| Rc::new(Bucket::<A, R>(RefCell::new(Vec::new()))));
@@ -816,8 +818,10 @@ fn validate<A, R>(
 fn claim_once<A, R>(state: &State, key: &Key, hook: &Hook<A, R>) {
     if hook.once {
         remove(state, key, hook.id);
-        let callback = state.cleanups.borrow_mut().remove(&hook.cleanup_id);
-        drop(callback);
+        if let Ok(owner) = hook.context.owner() {
+            let callback = owner.cleanups.borrow_mut().remove(&hook.cleanup_id);
+            drop(callback);
+        }
     }
 }
 fn invoke_response<A: 'static, R: 'static>(

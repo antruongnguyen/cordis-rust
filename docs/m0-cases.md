@@ -8,9 +8,10 @@ must be expanded to every upstream variant when ported; line numbers locate
 the declaration, not an assertion of coverage.
 
 Check an item only when an integrated production Rust test proves its behavior,
-or link an explicit Rust representation restriction instead. M2 marks
-integrated root-level evidence; the [M2 mapping](m2.md#evidence-and-remaining-case-coverage)
-records timing/API restrictions and remaining gaps. A passing disposable M0
+or link an explicit Rust representation restriction instead. M2/M3 mark
+integrated root/lifecycle evidence; the [M2 mapping](m2.md#evidence-and-remaining-case-coverage)
+and [M3 mapping](m3.md#evidence-and-remaining-source-coverage) record API
+restrictions and remaining gaps. A passing disposable M0
 model alone is still not production parity. The [M0 results](m0.md) map its
 selected experiments to source-backed expectations. File-level
 milestone owners are defaults; validation/update cases in `fiber.spec.ts` and
@@ -37,7 +38,7 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/dispose.spec.ts); production owner: **M2**.
 
-- [ ] `dispose by plugin` (line 7)
+- [x] `dispose by plugin` (line 7)
 - [x] `dispose manually` (line 23)
 - [x] `yield dispose` (line 37)
 - [x] `async return 1` (line 76)
@@ -82,21 +83,21 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 - [ ] `inertia lock 1` (line 7)
 - [ ] `inertia lock 2` (line 27)
 - [ ] `inertia lock 3` (line 49)
-- [ ] `plugin error` (line 71)
+- [x] `plugin error` (line 71)
 - [ ] `failed fiber does not re-enter on dependency refresh` (line 93)
 - [ ] `update recovers a failed fiber` (line 108)
 - [ ] `update waits for asynchronous recovery` (line 122)
 - [ ] `update surfaces a failed recovery to its caller` (line 144)
 - [ ] `update surfaces a failed reload to its caller` (line 156)
 - [ ] `update does not leak a dropped failure` (line 171)
-- [ ] `dispose error` (line 185)
+- [x] `dispose error` (line 185)
 - [ ] `settles a pending fiber to DISPOSED on dispose` (line 204)
 - [ ] `settles a failed fiber to DISPOSED on dispose` (line 231)
 - [ ] `keeps the active dispose sequence stable` (line 264)
 - [ ] `update config on wrapped fiber` (line 292)
-- [ ] `restart wrapped fiber` (line 312)
+- [x] `restart wrapped fiber` (line 312)
 - [ ] `update config while injected service reloads` (line 326)
-- [ ] `fail on first load` (line 384)
+- [x] `fail on first load` (line 384)
 - [ ] `keep a running plugin on update` (line 396)
 - [ ] `keep the issues and their paths` (line 413)
 - [ ] `pass the resolved config to listeners` (line 426)
@@ -152,15 +153,15 @@ internal-update listener cases in `events.spec.ts` extend into M5.
 
 [Pinned source](https://github.com/cordiverse/cordis/blob/35fdc969e4b6c48c48ed44717c7a018324e4dd88/packages/core/tests/plugin.spec.ts); production owner: **M3**.
 
-- [ ] `apply functional plugin` (line 8)
-- [ ] `apply object plugin` (line 18)
-- [ ] `apply invalid plugin` (line 29)
-- [ ] `inactive context` (line 36)
-- [ ] `context inspect` (line 50)
-- [ ] `ctx.registry` (line 77)
-- [ ] `nested plugins` (line 86)
-- [ ] `compare snapshot` (line 123)
-- [ ] `root dispose` (line 145)
+- [x] `apply functional plugin` (line 8)
+- [x] `apply object plugin` (line 18)
+- [x] `apply invalid plugin` (line 29)
+- [x] `inactive context` (line 36)
+- [x] `context inspect` (line 50)
+- [x] `ctx.registry` (line 77)
+- [x] `nested plugins` (line 86)
+- [x] `compare snapshot` (line 123)
+- [x] `root dispose` (line 145)
 - [ ] `Service.init` (line 165)
 
 ## reflect.spec.ts

@@ -7,10 +7,11 @@ Instructions for agents (and humans) working in this repository.
 `cordis-rust` is a from-scratch Rust reimplementation of the
 [Cordis](https://github.com/cordiverse/cordis) meta-framework.
 
-**Status: M2 root contract complete.** The root Rust 2024 workspace contains only the
+**Status: M3 base lifecycle complete.** The root Rust 2024 workspace contains only the
 unpublished `crates/cordis-core` (Rust 1.85 minimum). Use `cargo test --workspace`.
-Root effects/introspection, typed events, and diagnostic logging are in `docs/m2.md`; plugins,
-services, and non-root Fibers are not implemented. The isolated `spikes/m0`
+Plugin/Registry/scoped-resource contracts are in `docs/m3.md`, with effects,
+events, and diagnostics in `docs/m2.md`. Service injection/convergence and config
+updates are not implemented. The isolated `spikes/m0`
 package remains research evidence; run it with its own `--manifest-path`.
 
 ## Source of truth

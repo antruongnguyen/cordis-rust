@@ -37,7 +37,8 @@ impl fmt::Debug for RuntimeId {
     }
 }
 
-/// An opaque Fiber identity; M1 exposes only the permanent root Fiber.
+/// An opaque Fiber identity, stable across restart and disposal. Each plugin
+/// instance and the permanent root Fiber have distinct allocation identities.
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FiberId(Identity);
 

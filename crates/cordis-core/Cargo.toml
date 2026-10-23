@@ -1,6 +1,6 @@
 [package]
 name = "cordis-core"
-description = "Local runtime, context, and cleanup foundations for the Cordis Rust port"
+description = "Local plugin lifecycle, scoped effects, typed events, and diagnostics for Cordis"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

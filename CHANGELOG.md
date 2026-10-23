@@ -8,6 +8,13 @@ This project does not yet follow semantic versioning — the API is unstable.
 ## [Unreleased]
 
 ### Added
+- M3 typed reusable plugins and Registry grouping, per-load synchronous validation
+  with retained source/resolved types, and supervised non-root Fiber lifecycle.
+- Fiber-owned effects/listeners/exporters, parent-owned child disposal, restart
+  coalescing, exact Registry group removal/pruning, lifecycle completion handles,
+  and inactive Context/self-or-ancestor wait refusal.
+- Current Fiber names/diagnostic attribution, lifecycle/type-safety regressions,
+  M3 contracts, and source-case coverage (46 pinned contracts/equivalents total).
 - Synchronous disposer/registration APIs with immediate manual cleanup and
   all-sync setup rollback, preserving async barriers and concurrent root drains.
 - Effect labels and value-only nested tree introspection, including async

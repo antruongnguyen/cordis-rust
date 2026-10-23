@@ -62,7 +62,7 @@ impl Disposer {
         Self(Cleanup::sync(move || callback().map_err(Into::into)))
     }
 
-    /// Transfer an existing registration out of the root journal into composition.
+    /// Transfer an existing registration out of its Fiber journal into composition.
     /// The registration must belong to the current host and be unclaimed. Active
     /// setup cannot transfer itself or an ancestor containing it.
     pub fn from_effect(effect: Effect) -> Result<Self, SetupError> {
@@ -77,7 +77,11 @@ impl Disposer {
         {
             return Err(SetupError::RecursiveComposition);
         }
-        let callback = state
+        let owner = effect
+            .owner
+            .upgrade()
+            .ok_or(AdmissionError::InactiveContext)?;
+        let callback = owner
             .cleanups
             .borrow_mut()
             .remove(&effect.id)
@@ -189,11 +193,13 @@ impl Context {
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
         state.admit()?;
+        self.owner()?.admit()?;
         let resources = Rc::new(RefCell::new(Vec::new()));
+        let owner = self.owner()?;
         let registration = self.register_cleanup(Cleanup::collected(resources.clone()))?;
         let outcome: Result<(), CleanupFailure> = (|| {
             let mut iterator = effect::invoke(|| {
-                state.setup_scope(|| {
+                owner.setup_scope(|| {
                     ACQUIRING.sync_scope(Acquisition::enter(registration.node.clone()), || {
                         Ok(setup().into_iter())
                     })
@@ -201,7 +207,7 @@ impl Context {
             })?;
             loop {
                 let item = effect::invoke(|| {
-                    state.setup_scope(|| {
+                    owner.setup_scope(|| {
                         ACQUIRING.sync_scope(Acquisition::enter(registration.node.clone()), || {
                             iterator.next().transpose().map_err(Into::into)
                         })
@@ -216,7 +222,7 @@ impl Context {
         match outcome {
             Ok(()) => Ok(registration),
             Err(failure) => {
-                state.report(failure.clone());
+                state.report_for(&owner, failure.clone());
                 let rollback = registration.dispose()?;
                 drop(rollback);
                 Err(SetupError::Callback(failure))
@@ -253,6 +259,8 @@ impl Context {
             .upgrade()
             .ok_or(AdmissionError::RuntimeDropped)?;
         let host = state.admit()?;
+        let owner = self.owner()?;
+        owner.admit()?;
         let resources = Rc::new(RefCell::new(Vec::new()));
         let (sender, receiver) = watch::channel(None);
         let setup_state = SetupState {
@@ -276,7 +284,7 @@ impl Context {
         })?;
         registration.setup = Some(setup_state.clone());
         let stream = match effect::invoke(|| {
-            state.setup_scope(|| {
+            owner.setup_scope(|| {
                 ACQUIRING.sync_scope(Acquisition::enter(registration.node.clone()), || {
                     Ok(Box::pin(setup()))
                 })
@@ -284,7 +292,7 @@ impl Context {
         }) {
             Ok(stream) => stream,
             Err(failure) => {
-                state.report(failure.clone());
+                state.report_for(&owner, failure.clone());
                 sender.send_replace(Some(Err(SetupError::Callback(failure.clone()))));
                 drop(registration.dispose()?);
                 return Err(SetupError::Callback(failure));
@@ -292,6 +300,7 @@ impl Context {
         };
         let id = registration.id;
         let worker_state = state.clone();
+        let worker_owner = owner.clone();
         let node = registration.node.clone();
         let worker = state.spawn(&host, async move {
             let mut stream = stream;
@@ -299,7 +308,7 @@ impl Context {
                 let mut first = true;
                 while first || !setup_state.stop.get() {
                     first = false;
-                    let item = effect::invoke_async(worker_state.cleanup_scope(
+                    let item = effect::invoke_async(worker_owner.cleanup_scope(
                         ACQUIRING.scope(Acquisition::enter(node.clone()), async {
                             stream.next().await.transpose().map_err(Into::into)
                         }),
@@ -318,15 +327,15 @@ impl Context {
             if let Err(failure) = &outcome {
                 let callbacks = std::mem::take(&mut *resources.borrow_mut());
                 if let Err(cleanup) = effect::invoke_async(
-                    worker_state
+                    worker_owner
                         .cleanup_scope(async { Cleanup::sequence(callbacks).run().finish().await }),
                 )
                 .await
                 {
-                    worker_state.report(cleanup);
+                    worker_state.report_for(&worker_owner, cleanup);
                 }
-                worker_state.report(failure.clone());
-                let callback = worker_state.cleanups.borrow_mut().remove(&id);
+                worker_state.report_for(&worker_owner, failure.clone());
+                let callback = worker_owner.cleanups.borrow_mut().remove(&id);
                 drop(callback);
             }
             outcome.map_err(SetupError::Callback)

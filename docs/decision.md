@@ -4,6 +4,41 @@ A lightweight log of decisions made for this project and the reasoning behind
 them. Newest first. This is intentionally not a heavy ADR process; it records
 *what we chose and why* so the choices aren't re-litigated silently.
 
+## 2026-10-23 — M3 separates resource ownership from runtime residency
+
+Each Fiber owns its own cleanup journal and observable state. Registry groups
+retain live/failed instances; Context and registration tokens retain weak
+runtime/owner links. A child's disposal is a parent effect, removed immediately
+by explicit child disposal. Child-to-parent links are weak and used for callback
+attribution, not lifetime retention. Root remains permanent and reusable.
+
+**Why:** Existing M2 resources must follow their registering Fiber without a
+runtime-to-callback-to-Context cycle or a parent accumulating retired children.
+Group retirement/pruning uses exact allocation checks so old teardown cannot
+delete a new group of the same reusable declaration. Scoped cleanup still allows
+final event dispatch/logging but refuses new terminal-owner registrations.
+
+## 2026-10-23 — Typed plugin declarations and one supervised lifecycle driver
+
+Use reusable `Plugin<C, R>` declarations with per-load synchronous validation
+and explicit Context-based acquisitions. Clones share grouping identity; new
+declarations do not collapse by Rust callback type or name. Retain typed source
+config separately from resolved apply input. Invalid plugin/config shapes are
+compile errors; runtime callback errors retain their original Error source.
+
+One in-flight driver coalesces restart revisions; terminal disposal wins over
+queued work and waits for in-flight apply/cleanup. Failed instances remain
+resident until disposal; restart does not silently recover them. Config update
+and recovery remain M5. Self/owning-ancestor lifecycle waits are refused from
+attributed callbacks instead of deadlocking their subtree.
+
+**Why:** This preserves the TS parent/resource ownership, validation timing,
+and observable failure semantics without JavaScript callable-object discovery
+or the prior port's parent-unowned spawn model. Callback definitions are
+immutable, so the TS first-spawn metadata snapshot has no mutable counterpart.
+Runtime host lifetime remains explicit; Drop is not successful async teardown.
+See [M3 contracts and evidence](m3.md).
+
 ## 2026-10-23 — Complete root M2 timing with explicit synchronous cleanup
 
 Use one cleanup representation with ready and pending outcomes. Sync manual
